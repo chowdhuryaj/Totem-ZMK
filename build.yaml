@@ -1,0 +1,73 @@
+# This file generates the GitHub Actions matrix.
+# For simple board + shield combinations, add them to the top level board and
+# shield arrays, for more control, add individual board + shield combinations
+# to the `include` property. You can also use the `cmake-args` property to
+# pass flags to the build command and `artifact-name` to assign a name to
+# distinguish build outputs from each other:
+#
+# board: [ "nice_nano_v2" ]
+# shield: [ "corne_left", "corne_right" ]
+# include:
+#   - board: bdn9_rev2
+#   - board: nice_nano_v2
+#     shield: reviung41
+#   - board: nice_nano_v2
+#     shield: corne_left
+#     cmake-args: -DCONFIG_ZMK_USB_LOGGING=y
+#     artifact-name: corne_left_with_logging
+#
+---
+include:
+  # Central half (LEFT): raw_hid_adapter (zzeneg/zmk-raw-hid) carries the
+  # Flask tuning protocol's HID device; the studio snippet + config enable
+  # live keymap editing over ZMK Studio's USB-serial RPC (plus BLE GATT,
+  # which needs no snippet).
+  #
+  # STUDIO_LOCKING=n (same call as the Imprint, AJ 2026-07-15): Studio boots
+  # UNLOCKED and never re-locks, so &studio_unlock is not needed to edit the
+  # keymap. &studio_unlock stays bound (Control layer) and is a no-op.
+  #
+  # Why: unlock is PHYSICAL-ONLY by design — core.proto has a `lock` RPC but
+  # no `unlock`, and every keymap RPC plus get_behavior_details is SECURED,
+  # so a locked board cannot even be read.
+  #
+  # ⚠ TRADEOFF: the lock exists so a random web page with WebSerial access
+  # cannot rewrite the keymap without a physical confirmation. Off = it can.
+  # ZMK implies locking ON for real hardware; this explicitly overrides that
+  # (`imply` is a weak default, so an explicit =n wins). Revert by dropping
+  # this flag.
+  #
+  # Studio only runs on central, so this flag only belongs here.
+  - board: xiao_ble//zmk
+    shield: totem_left raw_hid_adapter
+    snippet: studio-rpc-usb-uart
+    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n
+  # Peripheral half (RIGHT). Named "Totem R" so a Mac Bluetooth list can
+  # tell it from the central — pairing a HOST to this half never completes
+  # (it only accepts the split central), which reads as a "stuck
+  # connecting" loop. Pair the LEFT half's entry. No LED strip on the TOTEM,
+  # so no flask_rgb offset arg (the Imprint's right build carries one).
+  - board: xiao_ble//zmk
+    shield: totem_right
+    cmake-args: -DCONFIG_ZMK_KEYBOARD_NAME='"Totem R"'
+  # Hang-capture central: USB console logging instead of the Studio CDC
+  # snippet (one CDC each — they'd fight over the port; the logging
+  # snippet also provides the cdc_acm_uart DT node the bare Kconfig
+  # lacks). Flash this LEFT-half image only when chasing a freeze/crash:
+  #   tio $(ls /dev/tty.usbmodem* | head -1)     # then reproduce
+  # Flask HID, keymap and split all behave like the normal central build;
+  # reflash the normal image when done.
+  - board: xiao_ble//zmk
+    shield: totem_left raw_hid_adapter
+    snippet: zmk-usb-logging
+    # Immediate mode: a hard hang never flushes deferred log buffers — the
+    # tail before the freeze is the whole point of this image.
+    cmake-args: -DCONFIG_LOG_MODE_IMMEDIATE=y
+    artifact-name: totem_left_logging
+  # Settings wipe: clears stored settings + bonds and sits in a no-op.
+  # Flash this SAME image to EACH half in turn, then flash the normal images
+  # back and re-pair. (Unlike the Imprint's board, the XIAO builds a bare
+  # settings_reset shield — no stacking on totem_left needed.)
+  - board: xiao_ble//zmk
+    shield: settings_reset
+    artifact-name: totem_settings_reset

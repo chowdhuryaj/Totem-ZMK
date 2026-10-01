@@ -1,0 +1,72 @@
+manifest:
+  remotes:
+    - name: zmkfirmware
+      url-base: https://github.com/zmkfirmware
+    - name: chowdhuryaj
+      url-base: https://github.com/chowdhuryaj
+    - name: urob
+      url-base: https://github.com/urob
+    - name: ssbb
+      url-base: https://github.com/ssbb
+    - name: mctechnology17
+      url-base: https://github.com/mctechnology17
+    - name: zzeneg
+      url-base: https://github.com/zzeneg
+
+  projects:
+    - name: zmk
+      remote: zmkfirmware
+      # Same pin as the Imprint (main @ 2026-06-29) so both boards build the
+      # same ZMK; bump deliberately, together.
+      revision: 484a0547078228f6957ed164523823e39fbedec4
+      import: app/west.yml
+
+    # The TOTEM shield is VENDORED under boards/shields/totem (MIT,
+    # from GEIGEIGEIST/zmk-config-totem): upstream is a 2023 user config,
+    # not a west module, and its shield predates Zephyr 4.1 board names and
+    # ZMK Studio's physical layout. No keyboards project needed here.
+
+    - name: zmk-adaptive-key
+      remote: urob
+      revision: main
+      path: modules/zmk/adaptive-key
+
+    # urob behavior modules track `main` — our zmk pin is main (post-v0.3),
+    # and the v0.3 tags call pre-Studio keymap APIs.
+    - name: zmk-auto-layer
+      # Our fork: urob main + Studio parameter metadata (LAYER_ID param1)
+      # so &num_word is app-assignable. Repoint to urob main if it merges.
+      remote: chowdhuryaj
+      revision: flask-metadata
+
+    - name: zmk-tri-state
+      remote: urob
+      revision: main
+
+    - name: zmk-listeners
+      remote: ssbb
+      revision: v1
+
+    - name: zmk-leader-key
+      remote: urob
+      revision: main
+
+    - name: zmk-flask-modules
+      remote: chowdhuryaj
+      # `totem` = flask-parity + Kconfig ZMK_FLASK_FAMILY (meta family id).
+      # ⚠ Local-only until pushed: CI cannot resolve this branch before
+      # `git push origin totem` in zmk-flask-modules.
+      revision: totem
+
+    - name: zmk-switch-layout
+      remote: mctechnology17
+      revision: main
+
+    - name: zmk-raw-hid
+      remote: zzeneg
+      # Pinned (main @ 2026-05-11) — this module IS the Flask transport;
+      # same pin as the Imprint. Bump deliberately.
+      revision: e25e325adc90fccb60cc08393b8c2b0ba6d647c7
+
+  self:
+    path: config

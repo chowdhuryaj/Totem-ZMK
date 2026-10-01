@@ -1,0 +1,972 @@
+/*
+ * TOTEM (GEIGEIGEIST, 38 keys, XIAO nRF52840) — Flask port of the Cyboard
+ * Imprint keymap (Cyboard-ZMK flask-parity, config/imprint.keymap).
+ * Every non-pointing feature carries over; trackball/mouse/RGB parts are
+ * dropped (no balls, no LED strip). Relocations: README.md.
+ *
+ * Key positions (transform order):
+ *          0  1  2  3  4      5  6  7  8  9
+ *         10 11 12 13 14     15 16 17 18 19
+ *      20 21 22 23 24 25     26 27 28 29 30 31
+ *               32 33 34     35 36 37
+ */
+
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/bt.h>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/outputs.h>
+#include <dt-bindings/zmk-switch-layout/switch-layout.h>
+
+#define L_BASE    0
+#define L_CONTROL 1
+#define L_FN      2
+#define L_SYM     3
+#define L_NUM     4
+
+/* Opposite-hand positions for the positional home-row/thumb hold-taps. */
+#define KEYS_L 0 1 2 3 4 10 11 12 13 14 20 21 22 23 24 25 32 33 34
+#define KEYS_R 5 6 7 8 9 15 16 17 18 19 26 27 28 29 30 31 35 36 37
+
+/* Control-layer nav keys the app switcher ignores (see swapper below). */
+#define SWAP_NAV 7 8 9 16 17 18 19
+
+/* OS mode = switch-layout index (mctechnology17/zmk-switch-layout), stored in
+ * settings so it survives reboot/reflash. slk_* behaviors below pick the
+ * right chord per OS; &sw_layout OS_NEXT (Control layer, position 25)
+ * toggles. */
+#define OS_PC  0
+#define OS_MAC 1
+#define OS_NEXT ZMK_SWITCH_LAYOUT_NEXT
+
+&mt {
+    quick-tap-ms = <150>;
+    flavor = "tap-preferred";
+};
+
+/ {
+    /* Physical layout comes from the vendored shield (totem.dtsi). */
+
+    behaviors {
+        hm_l_ctrl: hm_l_ctrl {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_L_CTRL";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_R>;
+        };
+
+        hm_l_alt: hm_l_alt {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_L_ALT";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_R>;
+        };
+
+        hm_l_gui: hm_l_gui {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_L_GUI";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+            hold-trigger-key-positions = <KEYS_R>;
+            hold-trigger-on-release;
+        };
+
+        hm_l_shft: hm_l_shft {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_L_SHFT";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_R>;
+        };
+
+        ak_rti: ak_rti {
+            compatible = "zmk,behavior-adaptive-key";
+            label = "AK_RTI";
+            #binding-cells = <0>;
+            bindings = <&key_repeat>;
+
+            rti_a {
+                trigger-keys = <A>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp O>;
+            };
+
+            rti_b {
+                trigger-keys = <B>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp E &kp C &kp A &kp U &kp S &kp E>;
+            };
+
+            rti_e {
+                trigger-keys = <E>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp U>;
+            };
+
+            rti_g {
+                trigger-keys = <G>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp N &kp G>;
+            };
+
+            rti_h {
+                trigger-keys = <H>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp C &kp H>;
+            };
+
+            rti_i {
+                trigger-keys = <I>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp N &kp G>;
+            };
+
+            rti_j {
+                trigger-keys = <J>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp U &kp S &kp T>;
+            };
+
+            rti_k {
+                trigger-keys = <K>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp N &kp G>;
+            };
+
+            rti_l {
+                trigger-keys = <L>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp O &kp N &kp G>;
+            };
+
+            rti_m {
+                trigger-keys = <M>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp E &kp N &kp T>;
+            };
+
+            rti_n {
+                trigger-keys = <N>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp O &kp N>;
+            };
+
+            rti_o {
+                trigger-keys = <O>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp U &kp L &kp D>;
+            };
+
+            rti_p {
+                trigger-keys = <P>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp E &kp O &kp P &kp L &kp E>;
+            };
+
+            rti_q {
+                trigger-keys = <Q>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp U>;
+            };
+
+            rti_t {
+                trigger-keys = <T>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp O &kp N>;
+            };
+
+            rti_u {
+                trigger-keys = <U>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I>;
+            };
+
+            rti_v {
+                trigger-keys = <V>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp S>;
+            };
+
+            rti_y {
+                trigger-keys = <Y>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp O &kp U>;
+            };
+
+            rti_space {
+                trigger-keys = <SPACE>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp T &kp H &kp E>;
+            };
+
+            rti_sentence {
+                trigger-keys = <DOT QMARK EXCL>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp SPACE &sk LSHFT>;
+            };
+
+            rti_bspc {
+                trigger-keys = <BSPC>;
+                max-prior-idle-ms = <500>;
+                bindings = <&slk_wbspc>;
+            };
+
+            rti_del {
+                trigger-keys = <DEL>;
+                max-prior-idle-ms = <500>;
+                bindings = <&slk_wdel>;
+            };
+        };
+
+        /* Second adaptive key (urob/zmk-adaptive-key): the QMK Alt Repeat —
+         * taps the REVERSE companion of the last key (→ after ←, PgDn after
+         * PgUp, ⇧Tab after Tab, closing bracket after opening). No
+         * max-prior-idle: works whenever. Falls back to plain repeat. More
+         * of these can coexist (ak_rti = completions, ak_alt = reversals). */
+        ak_alt: ak_alt {
+            compatible = "zmk,behavior-adaptive-key";
+            label = "AK_ALT";
+            #binding-cells = <0>;
+            bindings = <&key_repeat>;
+
+            alt_left    { trigger-keys = <LEFT>;  bindings = <&kp RIGHT>; };
+            alt_right   { trigger-keys = <RIGHT>; bindings = <&kp LEFT>; };
+            alt_up      { trigger-keys = <UP>;    bindings = <&kp DOWN>; };
+            alt_down    { trigger-keys = <DOWN>;  bindings = <&kp UP>; };
+            alt_pgup    { trigger-keys = <PG_UP>; bindings = <&kp PG_DN>; };
+            alt_pgdn    { trigger-keys = <PG_DN>; bindings = <&kp PG_UP>; };
+            alt_home    { trigger-keys = <HOME>;  bindings = <&kp END>; };
+            alt_end     { trigger-keys = <END>;   bindings = <&kp HOME>; };
+            alt_tab     { trigger-keys = <TAB>;   bindings = <&kp LS(TAB)>; };
+            alt_lbkt    { trigger-keys = <LBKT>;  bindings = <&kp RBKT>; };
+            alt_rbkt    { trigger-keys = <RBKT>;  bindings = <&kp LBKT>; };
+        };
+
+        /* Smart num layer (urob/zmk-auto-layer): &num_word L_NUM latches the
+         * num layer; digits and the continue-list keep it alive, anything
+         * else drops back. */
+        num_word: num_word {
+            compatible = "zmk,behavior-auto-layer";
+            #binding-cells = <1>;
+            display-name = "Num Word";
+            continue-list = <BSPC DEL DOT COMMA PLUS MINUS STAR FSLH EQUAL>;
+            ignore-numbers;
+        };
+
+        /* App switcher (urob/zmk-tri-state): tap = mod+Tab and the mod STAYS
+         * HELD; more taps cycle; any non-ignored key press (or releasing the
+         * Control layer) drops the mod and commits. OS-aware since 2026-07-08:
+         * &swapper is a switch-layout-key wrapping two tri-states — ⌘ on mac,
+         * Alt on PC — following the same persisted &sw_layout OS_NEXT toggle
+         * as every slk_* key (ZMK has no host-OS auto-detection; zmk#2553).
+         * Ignored positions (SWAP_NAV) = Control's ⇧Tab/Up/Tab (7 8 9) and
+         * Enter/arrows (16-19) so the app grid can be navigated mid-swap.
+         * ⇧Tab (7) doubles as the reverse key: shift applies to whichever
+         * mod the swapper holds, so one reverse key serves both OSes. (The
+         * Imprint's separate reverse key on its number row has no room on
+         * 38 keys.) */
+        swapper_mac: swapper_mac {
+            compatible = "zmk,behavior-tri-state";
+            label = "SWAPPER_MAC";
+            #binding-cells = <0>;
+            bindings = <&kt LGUI>, <&kp TAB>, <&kt LGUI>;
+            ignored-key-positions = <SWAP_NAV>;
+        };
+
+        swapper_win: swapper_win {
+            compatible = "zmk,behavior-tri-state";
+            label = "SWAPPER_WIN";
+            #binding-cells = <0>;
+            bindings = <&kt LALT>, <&kp TAB>, <&kt LALT>;
+            ignored-key-positions = <SWAP_NAV>;
+        };
+
+        swapper: swapper {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&swapper_win>, <&swapper_mac>;
+        };
+
+        as_ht: as_ht {
+            compatible = "zmk,behavior-hold-tap";
+            label = "AS_HT";
+            bindings = <&shift>, <&kp>;
+
+            #binding-cells = <2>;
+            tapping-term-ms = <200>;
+            flavor = "tap-preferred";
+        };
+
+        bdel: bdel {
+            compatible = "zmk,behavior-mod-morph";
+            label = "BDEL";
+            bindings = <&kp BSPC>, <&kp DEL>;
+
+            #binding-cells = <0>;
+            mods = <(MOD_LSFT|MOD_RSFT)>;
+            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
+        };
+
+        th_r_rep: th_r_rep {
+            compatible = "zmk,behavior-hold-tap";
+            label = "TH_R_REP";
+            bindings = <&kp>, <&key_repeat>;
+
+            #binding-cells = <2>;
+            tapping-term-ms = <180>;
+            flavor = "hold-preferred";
+            quick-tap-ms = <150>;
+            require-prior-idle-ms = <165>;
+            hold-trigger-key-positions = <KEYS_L>;
+        };
+
+        hm_r_ctrl: hm_r_ctrl {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_R_CTRL";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_L>;
+        };
+
+        hm_r_gui: hm_r_gui {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_R_GUI";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_L>;
+        };
+
+        hm_r_shift: hm_r_shift {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_R_SHIFT";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_L>;
+        };
+
+        sl_mo: sl_mo {
+            compatible = "zmk,behavior-hold-tap";
+            label = "SL_MO";
+            bindings = <&mo>, <&sl>;
+
+            #binding-cells = <2>;
+            tapping-term-ms = <200>;
+            quick-tap-ms = <150>;
+            flavor = "balanced";
+        };
+
+        leader: leader {
+            compatible = "zmk,behavior-leader-key";
+            label = "LEADER";
+            #binding-cells = <0>;
+
+            email {
+                sequence = <E M>;
+                bindings = <&email_um>;
+            };
+
+            to_usb {
+                sequence = <U>;
+                bindings = <&out OUT_USB>;
+            };
+
+            to_ble {
+                sequence = <B>;
+                bindings = <&out OUT_BLE>;
+            };
+        };
+
+        /* --- OS-aware shortcuts (zmk-switch-layout): index 0 = PC, 1 = mac.
+         * Persisted in settings; swap with &sw_layout OS_NEXT. --- */
+        sw_layout: sw_layout {
+            compatible = "zmk-switch-layout,behavior-switch-layout-mode";
+            #binding-cells = <1>;
+            layout-count = <2>;
+            default-layout = <OS_PC>;
+        };
+
+        slk_copycut: slk_copycut {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&mt LC(X) LC(C)>, <&mt LG(X) LG(C)>;
+        };
+
+        slk_paste: slk_paste {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&kp LC(V)>, <&kp LG(V)>;
+        };
+
+        slk_undoredo: slk_undoredo {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&mt LC(Y) LC(Z)>, <&mt LG(LS(Z)) LG(Z)>;
+        };
+
+        slk_selall: slk_selall {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&kp LC(A)>, <&kp LG(A)>;
+        };
+
+        slk_close: slk_close {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&kp LC(W)>, <&kp LG(W)>;
+        };
+
+        slk_ntab: slk_ntab {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&kp LC(T)>, <&kp LG(T)>;
+        };
+
+        slk_wbspc: slk_wbspc {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&kp LC(BSPC)>, <&kp LA(BSPC)>;
+        };
+
+        slk_wdel: slk_wdel {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&kp LC(DEL)>, <&kp LA(DEL)>;
+        };
+
+        slk_home_down: slk_home_down {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&mt HOME DOWN_ARROW>, <&mt LG(LEFT) DOWN_ARROW>;
+        };
+
+        slk_end_up: slk_end_up {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&mt END UP>, <&mt LG(RIGHT) UP>;
+        };
+
+        slk_wleft: slk_wleft {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&mt LC(LEFT) LEFT_ARROW>, <&mt LA(LEFT) LEFT_ARROW>;
+        };
+
+        slk_wright: slk_wright {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&mt LC(RIGHT) RIGHT>, <&mt LA(RIGHT) RIGHT>;
+        };
+
+        /* Runtime macros (flask_macros, channel 0x25): &fmac <slot> plays a
+         * live-editable 16-step macro slot (0-15), edited from the Flask
+         * app. Unbound by default — assign from Studio / the app's editor;
+         * the node existing is what compiles the behavior in and puts it on
+         * Studio's behavior list (slot range rides parameter metadata). */
+        /* Runtime leader (flask_leader, channel 0x19): &fled opens a
+         * capture matched against the app-edited sequence table. Unbound
+         * by default — assign from Studio / the app. urob's &leader (the
+         * compiled email/USB/BLE sequences) stays on its own key. */
+        fled: fled {
+            compatible = "zmk,behavior-flask-leader";
+            #binding-cells = <0>;
+            display-name = "Flask Leader";
+        };
+
+        fmac: fmac {
+            compatible = "zmk,behavior-flask-macros";
+            #binding-cells = <1>;
+            display-name = "Flask Macro";
+        };
+
+        /* Runtime tap dance (flask_tapdance, channel 0x28, v14): &ftd <slot>
+         * runs a live-editable dance — per-slot tapping term + one typed
+         * output per tap count, all from the app's wizard. Unbound by
+         * default — assign from Studio / the app; the node existing is what
+         * compiles the behavior in (slot range rides parameter metadata). */
+        ftd: ftd {
+            compatible = "zmk,behavior-flask-tapdance";
+            #binding-cells = <1>;
+            display-name = "Tap Dance";
+        };
+
+        /* Composer tap-hold timing variants (v14, AJ's "behavior
+         * modification settings" ask). Core hold-tap params are const DT —
+         * not runtime-tunable — so the app's Tap-hold section offers a
+         * TIMING choice among these precompiled instances instead: &mt
+         * stays the core 200 ms (quick-tap 150 via the &mt override up
+         * top), fast resolves at 150, slow at 300. Same two-param shape
+         * Studio already renders for &mt. */
+        mt_fast: mt_fast {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap (fast 150)";
+            flavor = "tap-preferred";
+            tapping-term-ms = <150>;
+            quick-tap-ms = <125>;
+            bindings = <&kp>, <&kp>;
+        };
+
+        mt_slow: mt_slow {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap (slow 300)";
+            flavor = "tap-preferred";
+            tapping-term-ms = <300>;
+            quick-tap-ms = <175>;
+            bindings = <&kp>, <&kp>;
+        };
+
+        lt_fast: lt_fast {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Layer-Tap (fast 150)";
+            flavor = "tap-preferred";
+            tapping-term-ms = <150>;
+            quick-tap-ms = <125>;
+            bindings = <&mo>, <&kp>;
+        };
+
+        lt_slow: lt_slow {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Layer-Tap (slow 300)";
+            flavor = "tap-preferred";
+            tapping-term-ms = <300>;
+            quick-tap-ms = <175>;
+            bindings = <&mo>, <&kp>;
+        };
+
+        /* --- Smart one-shot/hold (2026-07-10, AJ's ask) ---
+         * Tri-state modifier/layer keys by composition: a hold-tap whose
+         * HOLD binding is a sticky behavior.
+         *   tap                                → the tap binding (any usage)
+         *   hold past tapping-term, release
+         *     with nothing else pressed        → ONE-SHOT (next key gets it)
+         *   keep holding and type              → plain held modifier/layer
+         * The one-shot window is skm's release-after-ms (1.5 s). Unbound by
+         * default — Studio-assignable two-param behaviors, the same shape
+         * Studio renders for &mt / &lt (param1 = mod / layer, param2 = tap
+         * usage). */
+        skm: skm {
+            compatible = "zmk,behavior-sticky-key";
+            #binding-cells = <1>;
+            display-name = "Sticky Mod (smart)";
+            release-after-ms = <1500>;
+            bindings = <&kp>;
+            ignore-modifiers; /* chain ⇧ then ⌘ as stacked one-shots */
+        };
+
+        smart_mod: smart_mod {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Smart Mod";
+            flavor = "balanced";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <175>;
+            bindings = <&skm>, <&kp>;
+        };
+
+        /* Smart Layer, reworked to AJ's bench spec (2026-07-11): the param
+         * is a LAYER on both sides —
+         *   tap                  → &tog latches the layer (tap again on a
+         *                          position that stays &trans to unlatch)
+         *   brief hold + release → one-shot layer (next key), via &skl
+         *   sustained hold       → layer while held
+         * &skl is a dedicated NON-lazy sticky layer: the stock &sl carried
+         * urob's `lazy` flag, which defers activation until the next key —
+         * that's why the HUD didn't follow. Bind as &smart_layer L L (the
+         * hold-tap needs the layer in both params; the app's composer fills
+         * both from one picker). */
+        skl: skl {
+            compatible = "zmk,behavior-sticky-key";
+            #binding-cells = <1>;
+            display-name = "Sticky Layer (smart)";
+            release-after-ms = <1500>;
+            bindings = <&mo>;
+            ignore-modifiers;
+        };
+
+        smart_layer: smart_layer {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Smart Layer";
+            flavor = "balanced";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <175>;
+            bindings = <&skl>, <&tog>;
+        };
+    };
+
+    /* Combos = RUNTIME slots (flask_combos, channel 0x24) seeded from this
+     * node, same as the Imprint: each child seeds one slot in declaration
+     * order; app edits and deletions persist and win on boot. Imprint's 28
+     * defaults translated to Totem positions, minus the two mouse-button
+     * combos (m4/m5); the three thumb combos moved to adjacent thumb pairs
+     * and a Sym-layer combo was added (27 total). */
+    flask_combos_defaults {
+        compatible = "flask,combos-defaults";
+
+        copy_cut {
+            bindings = <&slk_copycut>;
+            key-positions = <12 11>;
+            timeout-ms = <35>;
+            require-prior-idle-ms = <150>;
+        };
+
+        lbtab {
+            bindings = <&kp LS(TAB)>;
+            key-positions = <11 1>;
+            timeout-ms = <35>;
+        };
+
+        tab {
+            bindings = <&kp TAB>;
+            key-positions = <12 2>;
+            timeout-ms = <35>;
+        };
+
+        lesc {
+            bindings = <&kp ESC>;
+            key-positions = <0 10>;
+            timeout-ms = <35>;
+        };
+
+        paste {
+            bindings = <&slk_paste>;
+            key-positions = <13 12>;
+            timeout-ms = <35>;
+            require-prior-idle-ms = <150>;
+        };
+
+        undo_redo {
+            bindings = <&slk_undoredo>;
+            key-positions = <11 10>;
+            timeout-ms = <35>;
+            require-prior-idle-ms = <150>;
+        };
+
+        sel_all {
+            bindings = <&slk_selall>;
+            key-positions = <14 4>;
+            timeout-ms = <35>;
+            require-prior-idle-ms = <140>;
+        };
+
+        ent {
+            bindings = <&kp ENTER>;
+            key-positions = <3 13>;
+            timeout-ms = <35>;
+        };
+
+        close {
+            bindings = <&slk_close>;
+            key-positions = <13 24>;
+            timeout-ms = <35>;
+        };
+
+        ntab {
+            bindings = <&slk_ntab>;
+            key-positions = <12 23>;
+            timeout-ms = <35>;
+        };
+
+        quit {
+            bindings = <&kp LG(Q)>;
+            key-positions = <10 21>;
+            timeout-ms = <35>;
+        };
+
+        rbtab {
+            bindings = <&kp LS(TAB)>;
+            key-positions = <8 18>;
+            timeout-ms = <35>;
+        };
+
+        rtab {
+            bindings = <&kp TAB>;
+            key-positions = <7 17>;
+            timeout-ms = <35>;
+        };
+
+        resc {
+            bindings = <&kp ESC>;
+            key-positions = <9 19>;
+            timeout-ms = <35>;
+        };
+
+        rent {
+            bindings = <&kp ENTER>;
+            key-positions = <6 16>;
+            timeout-ms = <35>;
+        };
+
+        excl {
+            bindings = <&kp EXCL>;
+            key-positions = <5 6>;
+            timeout-ms = <35>;
+            layers = <L_BASE>;
+        };
+
+        dot {
+            bindings = <&kp DOT>;
+            key-positions = <15 16>;
+            timeout-ms = <35>;
+        };
+
+        comma {
+            bindings = <&kp COMMA>;
+            key-positions = <26 27>;
+            timeout-ms = <35>;
+        };
+
+        semi {
+            bindings = <&kp SEMI>;
+            key-positions = <26 15>;
+            timeout-ms = <35>;
+        };
+
+        quote {
+            bindings = <&kp SQT>;
+            key-positions = <17 28>;
+            timeout-ms = <35>;
+        };
+
+        fslhq {
+            bindings = <&kp FSLH>;
+            key-positions = <16 27>;
+            timeout-ms = <35>;
+        };
+
+        lbkt {
+            bindings = <&kp LEFT_BRACKET>;
+            key-positions = <18 29>;
+            timeout-ms = <35>;
+        };
+
+        rbkt {
+            bindings = <&kp RBKT>;
+            key-positions = <19 30>;
+            timeout-ms = <35>;
+        };
+
+        z {
+            bindings = <&lt L_CONTROL Z>;
+            key-positions = <32 33>;
+            timeout-ms = <50>;
+        };
+
+        x {
+            bindings = <&lt L_FN X>;
+            key-positions = <33 34>;
+            timeout-ms = <35>;
+        };
+
+        sym {
+            bindings = <&mo L_SYM>;
+            key-positions = <35 36>;
+            timeout-ms = <35>;
+        };
+
+        rrep {
+            bindings = <&key_repeat>;
+            key-positions = <36 37>;
+            timeout-ms = <35>;
+        };
+    };
+
+    macros {
+        shift: shift {
+            compatible = "zmk,behavior-macro-one-param";
+            label = "SHIFT";
+            #binding-cells = <1>;
+            bindings =
+                <&macro_press>,
+                <&kp LSHFT>,
+                <&macro_tap>,
+                <&macro_param_1to1 &kp MACRO_PLACEHOLDER>,
+                <&macro_release>,
+                <&kp LSHFT>;
+        };
+
+        as: as {
+            compatible = "zmk,behavior-macro-one-param";
+            label = "AS";
+            #binding-cells = <1>;
+            bindings =
+                <&macro_press>,
+                <&macro_param_1to1 &macro_param_1to2 &as_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>,
+                <&macro_pause_for_release>,
+                <&macro_release>,
+                <&macro_param_1to1 &macro_param_1to2 &as_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>;
+        };
+
+        qu: qu {
+            compatible = "zmk,behavior-macro";
+            label = "QU";
+            #binding-cells = <0>;
+            bindings = <&kp Q &kp U>;
+        };
+
+        email_um: email_um {
+            compatible = "zmk,behavior-macro";
+            label = "EMAIL_UM";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&kp C &kp H &kp O &kp W &kp D &kp N1 &kp N9 &kp N8 &kp AT &kp U &kp M &kp N &kp DOT &kp E &kp D &kp U>;
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        /* Imprint base minus the number row (→ Sym layer), the bottom row
+         * (→ Fn / Sym / Control) and the trackball buttons (dropped). Outer
+         * bottom keys carry the Imprint's lower-thumb T/Ctrl and R/Shift.
+         * Layers: Control = thumb combo 32+33 (hold), Fn = 33+34 (hold),
+         * Sym = 35+36 (hold), Num = &num_word on Control. README has the
+         * full relocation table. */
+        base {
+            bindings = <
+                         &kp Q                    &kp W                    &kp E                    &kp R                    &kp T    &kp Y                    &kp U                    &kp I                    &kp O                    &kp P
+                         &kp A                    &kp S                    &kp D                    &kp F                    &kp G    &kp H                    &kp J                    &kp K                    &kp L                    &kp SEMI
+&hm_l_shft LCTRL T       &kp Z                    &kp X                    &kp C                    &kp V                    &kp B    &kp N                    &kp M                    &kp COMMA                &kp DOT                  &kp FSLH                 &hm_r_shift RSHFT R
+                                                                           &hm_l_gui LGUI H         &hm_l_shft LSHFT SPACE   &hm_l_ctrl LCTRL BSPC    &hm_r_ctrl RCTRL DEL     &hm_r_shift RSHFT SPACE  &hm_r_gui RGUI L
+            >;
+        };
+
+        /* Held by thumb combo 32+33 (&lt L_CONTROL Z). Nav/media rows are the
+         * Imprint's control rows 1-3; the number-row and thumb items (swapper,
+         * num_word, BT, OS toggle, reset, studio_unlock) moved into the slots
+         * the trackball/RGB keys (&bswap, &frgb, &ext_power, &asc) left. */
+        control {
+            bindings = <
+                    &kp C_VOL_UP        &kp HOME            &kp UP              &kp END             &trans    &swapper            &ak_alt             &kp LS(TAB)         &kp UP              &kp TAB
+                    &kp C_VOL_DN        &kp LEFT            &kp DOWN            &kp RIGHT           &leader    &caps_word          &kp RET             &kp LEFT            &kp DOWN            &kp RIGHT
+&bootloader         &kp C_MUTE          &kp C_PP            &kp C_REWIND        &kp C_FF            &sw_layout OS_NEXT    &num_word L_NUM     &bt BT_CLR          &studio_unlock      &to L_BASE          &bt BT_SEL 3        &sys_reset
+                                                            &trans              &trans              &trans    &bt BT_SEL 0        &bt BT_SEL 1        &bt BT_SEL 2
+            >;
+        };
+
+        /* Held by thumb combo 33+34 (&lt L_FN X). Imprint fn rows 1-3 verbatim;
+         * the free top-right slots carry the Imprint base bottom-row OS-aware
+         * arrows (tap = arrow, hold = home/end/word jump). */
+        fn {
+            bindings = <
+                &kp F1          &kp F2          &kp F3          &kp F4          &kp F13    &trans          &slk_home_down  &slk_end_up     &slk_wleft      &slk_wright
+                &kp F5          &kp F6          &kp F7          &kp F8          &kp F14    &kp F16         &kp F17         &kp F18         &kp F19         &kp F20
+&trans          &kp F9          &kp F10         &kp F11         &kp F12         &kp F15    &kp F21         &kp F22         &kp F23         &kp F24         &none           &trans
+                                                &trans          &trans          &trans    &trans          &trans          &trans
+            >;
+        };
+
+        /* NEW on the Totem (no number row): held by thumb combo 35+36. Top
+         * row = the Imprint's autoshift digit row verbatim (&as: tap digit,
+         * hold = shifted). Row 2 = the shifted symbols as direct taps; row 3
+         * = grave (Imprint base bottom row) plus symbols the Imprint only
+         * reached through its num layer or not at all. */
+        sym {
+            bindings = <
+           &as N1     &as N2     &as N3     &as N4     &as N5    &as N6     &as N7     &as N8     &as N9     &as N0
+           &kp EXCL   &kp AT     &kp HASH   &kp DLLR   &kp PRCNT    &kp CARET  &kp AMPS   &kp STAR   &kp LPAR   &kp RPAR
+&trans     &kp GRAVE  &kp MINUS  &kp EQUAL  &kp LBKT   &kp RBKT    &kp BSLH   &kp SQT    &kp DQT    &kp TILDE  &kp PIPE   &trans
+                                 &trans     &trans     &trans    &trans     &trans     &trans
+            >;
+        };
+
+        /* Smart-num layer — latched by &num_word (auto-layer). Right-hand
+         * numpad as on the Imprint; the Imprint's outer-column operators and
+         * its 0 . , bottom row moved onto the inner column, the right outer key
+         * and the inner right thumb (0). Digits + the num_word continue-list
+         * keep it alive, anything else exits. */
+        num {
+            bindings = <
+           &trans     &trans     &trans     &trans     &trans    &kp MINUS  &kp N7     &kp N8     &kp N9     &kp FSLH
+           &trans     &trans     &trans     &trans     &trans    &kp COMMA  &kp N4     &kp N5     &kp N6     &kp STAR
+&trans     &trans     &trans     &trans     &trans     &trans    &kp DOT    &kp N1     &kp N2     &kp N3     &kp PLUS   &kp EQUAL
+                                 &trans     &trans     &trans    &kp N0     &trans     &trans
+            >;
+        };
+
+        /* Blank spares: ZMK's total layer capacity is the compiled
+         * devicetree child count — Studio's add-layer only reuses slots freed
+         * by remove-layer. Four all-&trans spares (same as the Imprint) give
+         * 9 layers for live editing. Nothing in firmware references these. */
+        spare1 {
+            bindings = <
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
+                        &trans  &trans  &trans    &trans  &trans  &trans
+            >;
+        };
+        spare2 {
+            bindings = <
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
+                        &trans  &trans  &trans    &trans  &trans  &trans
+            >;
+        };
+        spare3 {
+            bindings = <
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
+                        &trans  &trans  &trans    &trans  &trans  &trans
+            >;
+        };
+        spare4 {
+            bindings = <
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
+                        &trans  &trans  &trans    &trans  &trans  &trans
+            >;
+        };
+    };
+
+    conditional_layers { compatible = "zmk,conditional-layers"; };
+};
