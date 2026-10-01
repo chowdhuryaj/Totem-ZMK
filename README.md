@@ -6,7 +6,7 @@ half) carrying the Flask feature set from the Cyboard Imprint config
 and RGB: the Totem has no trackballs and no LED strip.
 
 - Flask raw-HID protocol (`zmk-flask-modules`, branch `totem`), meta family
-  id **5** (`CONFIG_ZMK_FLASK_FAMILY`). Same protocol version as the Imprint.
+  id **6** (5 is the GMK70) (`CONFIG_ZMK_FLASK_FAMILY`). Same protocol version as the Imprint.
 - Transport: `zzeneg/zmk-raw-hid` pinned to `6a37765` (USB reports sent from
   a static buffer, not the stack; fix of 2026-08-23).
 - Not used: `zmk-smart-sleep` (no-op without `CONFIG_ZMK_SLEEP`, which is off,
