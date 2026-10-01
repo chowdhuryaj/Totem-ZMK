@@ -64,9 +64,12 @@ manifest:
 
     - name: zmk-raw-hid
       remote: zzeneg
-      # Pinned (main @ 2026-05-11) — this module IS the Flask transport;
-      # same pin as the Imprint. Bump deliberately.
-      revision: e25e325adc90fccb60cc08393b8c2b0ba6d647c7
+      # Pinned (main @ 2026-08-24, merge of PR #5) — this module IS the Flask
+      # transport. Bumped from e25e325 (2026-05-11) for the 2026-08-23 fix
+      # "usb: send from a static buffer, not the stack" (nRF USB DMA read a
+      # stack buffer: good header, garbage tail). Only src/usb_hid.c changed.
+      # Bump deliberately.
+      revision: 6a37765dfab6197292e7a9f47305dcf87386d56a
 
   self:
     path: config

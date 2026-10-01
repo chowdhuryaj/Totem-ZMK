@@ -7,6 +7,12 @@ and RGB: the Totem has no trackballs and no LED strip.
 
 - Flask raw-HID protocol (`zmk-flask-modules`, branch `totem`), meta family
   id **5** (`CONFIG_ZMK_FLASK_FAMILY`). Same protocol version as the Imprint.
+- Transport: `zzeneg/zmk-raw-hid` pinned to `6a37765` (USB reports sent from
+  a static buffer, not the stack; fix of 2026-08-23).
+- Not used: `zmk-smart-sleep` (no-op without `CONFIG_ZMK_SLEEP`, which is off,
+  and it powers the half off 15 s after a disconnect even on USB) and
+  `zmk-patch-batterylevel` (its divider driver never drives the XIAO's
+  `power-gpios` enable pin, so it would read the battery as ~0).
 - ZMK Studio over USB (left half), locking off (see `build.yaml`).
 - Runtime combos, macros (`&fmac`), leader (`&fled` + urob `&leader`), tap
   dance (`&ftd`), custom shift keys.
