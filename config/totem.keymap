@@ -661,6 +661,19 @@
             display-name = "Tap Dance";
         };
 
+        /* Runtime adaptive key (flask_adaptive, channel 0x2B, v18): &fak <set>
+         * fires an output chosen by the last key typed — the same idea as
+         * ak_rti / ak_alt above, but every rule is editable from the app.
+         * Sets 0 and 1 are seeded from ak_rti / ak_alt by fak_defaults below;
+         * sets 2-3 start empty. Unbound by default — assign from Studio / the
+         * app (Keys > Run > Adaptive key). ak_rti and ak_alt stay compiled
+         * and bound until the &fak keys replace them. */
+        fak: fak {
+            compatible = "zmk,behavior-flask-adaptive";
+            #binding-cells = <1>;
+            display-name = "Adaptive Key";
+        };
+
         /* Composer tap-hold timing variants (v14, AJ's "behavior
          * modification settings" ask). Core hold-tap params are const DT —
          * not runtime-tunable — so the app's Tap-hold section offers a
@@ -767,6 +780,17 @@
             quick-tap-ms = <175>;
             bindings = <&skl>, <&tog>;
         };
+    };
+
+    /* Boot rules for &fak (flask_adaptive, channel 0x2B): set 0 <- ak_rti
+     * (fallback + 24 rules, rules 0-23), set 1 <- ak_alt (fallback + 11 rules,
+     * rules 24-34), packed in node/child/trigger order. ak_rti and ak_alt are
+     * still real behaviors; this node only copies their tables into the
+     * runtime pool. App edits and deletions saved over channel 0x2B win on
+     * boot. */
+    fak_defaults {
+        compatible = "flask,adaptive-defaults";
+        sets = <&ak_rti &ak_alt>;
     };
 
     /* Combos = RUNTIME slots (flask_combos, channel 0x24) seeded from this
