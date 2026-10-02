@@ -421,6 +421,61 @@
             bindings = <&kp>, <&kp>;
         };
 
+        /* Every hold-tap the keymap binds runs on the flask engine: two
+         * hold-tap engines side by side lose keys (a core hold-tap replays
+         * past the flask listener). These replace the bound core &lt / &mt /
+         * as_ht and read VIRTUAL slots (38+) instead of a key position, so
+         * a combo never borrows a thumb's timing. Defaults = the core values
+         * they replace (flask_holdtap_defaults below). The core nodes stay
+         * defined, unbound, for Studio. */
+        flt_ctl: flt_ctl {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Layer-Tap Control combo (live)";
+            bindings = <&mo>, <&kp>;
+            slot = <38>;
+        };
+
+        flt_fn: flt_fn {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Layer-Tap Fn combo (live)";
+            bindings = <&mo>, <&kp>;
+            slot = <39>;
+        };
+
+        fmt_copy: fmt_copy {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap copy/cut combo (live)";
+            bindings = <&kp>, <&kp>;
+            slot = <40>;
+        };
+
+        fmt_undo: fmt_undo {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap undo/redo combo (live)";
+            bindings = <&kp>, <&kp>;
+            slot = <41>;
+        };
+
+        fmt_nav: fmt_nav {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap Fn arrows (live)";
+            bindings = <&kp>, <&kp>;
+            slot = <42>;
+        };
+
+        fas_ht: fas_ht {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Autoshift (live)";
+            bindings = <&shift>, <&kp>;
+            slot = <43>;
+        };
+
         sl_mo: sl_mo {
             compatible = "zmk,behavior-hold-tap";
             label = "SL_MO";
@@ -465,7 +520,7 @@
         slk_copycut: slk_copycut {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
             #binding-cells = <0>;
-            bindings = <&mt LC(X) LC(C)>, <&mt LG(X) LG(C)>;
+            bindings = <&fmt_copy LC(X) LC(C)>, <&fmt_copy LG(X) LG(C)>;
         };
 
         slk_paste: slk_paste {
@@ -477,7 +532,7 @@
         slk_undoredo: slk_undoredo {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
             #binding-cells = <0>;
-            bindings = <&mt LC(Y) LC(Z)>, <&mt LG(LS(Z)) LG(Z)>;
+            bindings = <&fmt_undo LC(Y) LC(Z)>, <&fmt_undo LG(LS(Z)) LG(Z)>;
         };
 
         slk_selall: slk_selall {
@@ -513,25 +568,25 @@
         slk_home_down: slk_home_down {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
             #binding-cells = <0>;
-            bindings = <&mt HOME DOWN_ARROW>, <&mt LG(LEFT) DOWN_ARROW>;
+            bindings = <&fmt_nav HOME DOWN_ARROW>, <&fmt_nav LG(LEFT) DOWN_ARROW>;
         };
 
         slk_end_up: slk_end_up {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
             #binding-cells = <0>;
-            bindings = <&mt END UP>, <&mt LG(RIGHT) UP>;
+            bindings = <&fmt_nav END UP>, <&fmt_nav LG(RIGHT) UP>;
         };
 
         slk_wleft: slk_wleft {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
             #binding-cells = <0>;
-            bindings = <&mt LC(LEFT) LEFT_ARROW>, <&mt LA(LEFT) LEFT_ARROW>;
+            bindings = <&fmt_nav LC(LEFT) LEFT_ARROW>, <&fmt_nav LA(LEFT) LEFT_ARROW>;
         };
 
         slk_wright: slk_wright {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
             #binding-cells = <0>;
-            bindings = <&mt LC(RIGHT) RIGHT>, <&mt LA(RIGHT) RIGHT>;
+            bindings = <&fmt_nav LC(RIGHT) RIGHT>, <&fmt_nav LA(RIGHT) RIGHT>;
         };
 
         /* Runtime macros (flask_macros, channel 0x25): &fmac <slot> plays a
@@ -827,13 +882,13 @@
         };
 
         z {
-            bindings = <&lt L_CONTROL Z>;
+            bindings = <&flt_ctl L_CONTROL Z>;
             key-positions = <32 33>;
             timeout-ms = <50>;
         };
 
         x {
-            bindings = <&lt L_FN X>;
+            bindings = <&flt_fn L_FN X>;
             key-positions = <33 34>;
             timeout-ms = <35>;
         };
@@ -871,10 +926,10 @@
             #binding-cells = <1>;
             bindings =
                 <&macro_press>,
-                <&macro_param_1to1 &macro_param_1to2 &as_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>,
+                <&macro_param_1to1 &macro_param_1to2 &fas_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>,
                 <&macro_pause_for_release>,
                 <&macro_release>,
-                <&macro_param_1to1 &macro_param_1to2 &as_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>;
+                <&macro_param_1to1 &macro_param_1to2 &fas_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>;
         };
 
         qu: qu {
@@ -894,10 +949,11 @@
         };
     };
 
-    /* Boot timing for the flask_holdtap slots (slot = key position),
-     * seeded from the hm_* nodes these keys used before (280 / quick-tap
-     * 175 / prior-idle 150; GUI keys tap-preferred, the rest balanced).
-     * Unlisted positions boot at 200 / balanced / 0 / 0. App edits saved
+    /* Boot timing for the flask_holdtap slots (0-37 = key positions,
+     * 38-43 = virtual slots), key slots seeded from the hm_* nodes these
+     * keys used before (280 / quick-tap 175 / prior-idle 150; GUI keys
+     * tap-preferred, the rest balanced). Unlisted slots boot at 200 /
+     * balanced / 0 / 0. tapping-term-ms defaults to 200 here. App edits saved
      * over channel 0x2A win on boot; a slot reset returns here. */
     flask_holdtap_defaults {
         compatible = "flask,holdtap-defaults";
@@ -915,6 +971,49 @@
             tapping-term-ms = <280>;
             quick-tap-ms = <175>;
             require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        /* Virtual slots (a node's `slot`), seeded with the exact values of
+         * the core behaviors they replace: &lt = 200 tap-preferred; &mt =
+         * 200 tap-preferred quick-tap 150 (the &mt override up top);
+         * as_ht = 200 tap-preferred. */
+        v_ctl_combo {
+            key-positions = <38>;
+            display-name = "Control combo (32+33)";
+            flavor = "tap-preferred";
+        };
+
+        v_fn_combo {
+            key-positions = <39>;
+            display-name = "Fn combo (33+34)";
+            flavor = "tap-preferred";
+        };
+
+        v_copy_combo {
+            key-positions = <40>;
+            display-name = "Copy/cut combo (11+12)";
+            quick-tap-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        v_undo_combo {
+            key-positions = <41>;
+            display-name = "Undo/redo combo (10+11)";
+            quick-tap-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        v_fn_arrows {
+            key-positions = <42>;
+            display-name = "Fn arrows (Fn 6-9)";
+            quick-tap-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        v_autoshift {
+            key-positions = <43>;
+            display-name = "Sym autoshift digits";
             flavor = "tap-preferred";
         };
     };
@@ -937,7 +1036,7 @@
             >;
         };
 
-        /* Held by thumb combo 32+33 (&lt L_CONTROL Z). Nav/media rows are the
+        /* Held by thumb combo 32+33 (&flt_ctl L_CONTROL Z). Nav/media rows are the
          * Imprint's control rows 1-3; the number-row and thumb items (swapper,
          * num_word, BT, OS toggle, reset, studio_unlock) moved into the slots
          * the trackball/RGB keys (&bswap, &frgb, &ext_power, &asc) left. */
@@ -950,7 +1049,7 @@
             >;
         };
 
-        /* Held by thumb combo 33+34 (&lt L_FN X). Imprint fn rows 1-3 verbatim;
+        /* Held by thumb combo 33+34 (&flt_fn L_FN X). Imprint fn rows 1-3 verbatim;
          * the free top-right slots carry the Imprint base bottom-row OS-aware
          * arrows (tap = arrow, hold = home/end/word jump). */
         fn {

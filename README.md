@@ -99,8 +99,8 @@ Imprint positions use its 12/12/12/12/10/6/6 row numbering.
 | L/RGUI thumb | 63 | thumb 37 |
 | T/Ctrl thumb | 64 | left outer bottom 20 |
 | R/RShift thumb | 69 | right outer bottom 31 |
-| Combo z (`&lt` Control, Z) | thumbs 58+64 | thumbs 32+33 |
-| Combo x (`&lt` Fn, X) | thumbs 59+65 | thumbs 33+34 |
+| Combo z (`&flt_ctl` Control, Z) | thumbs 58+64 | thumbs 32+33 |
+| Combo x (`&flt_fn` Fn, X) | thumbs 59+65 | thumbs 33+34 |
 | Combo rrep (key repeat) | thumbs 63+69 | thumbs 36+37 |
 | Control: `&swapper` | row 0 | Control 5 |
 | Control: `&num_word` | row 0 | Control 26 |
@@ -142,9 +142,27 @@ before. The `hm_*` nodes stay defined so Studio can switch a key back.
 | 37 | `&fht_r RGUI L` | `&hm_r_gui` | 280 / 175 / 150 / tap-preferred |
 
 Every other position boots at 200 / 0 / 0 / balanced, which only matters
-once a key there is assigned an `&fht*` node. Unchanged on purpose: the
-`mt_fast` / `mt_slow` / `lt_*` composer variants, `&as`, `th_r_rep`,
-`sl_mo`, `smart_*` and the Fn-layer `slk_*` arrows (still core hold-taps).
+once a key there is assigned an `&fht*` node.
+
+**One engine.** Every hold-tap the keymap binds is a flask hold-tap. A core
+hold-tap that is undecided replays its captured keys past the flask
+listener, so mixing the two loses keys. The bound core ones moved onto
+flask nodes that read VIRTUAL slots after the 38 key positions (a node's
+`slot = <n>`), seeded with the core values they replaced:
+
+| Slot | Node | Used by | Was | Default |
+|---|---|---|---|---|
+| 38 | `&flt_ctl` | combo z 32+33 (Control) | `&lt` | 200 / 0 / 0 / tap-preferred |
+| 39 | `&flt_fn` | combo x 33+34 (Fn) | `&lt` | 200 / 0 / 0 / tap-preferred |
+| 40 | `&fmt_copy` | `slk_copycut` (combo 11+12) | `&mt` | 200 / 150 / 0 / tap-preferred |
+| 41 | `&fmt_undo` | `slk_undoredo` (combo 10+11) | `&mt` | 200 / 150 / 0 / tap-preferred |
+| 42 | `&fmt_nav` | Fn-layer `slk_home_down` / `slk_end_up` / `slk_wleft` / `slk_wright` | `&mt` | 200 / 150 / 0 / tap-preferred |
+| 43 | `&fas_ht` | `&as` macro (Sym digits) | `as_ht` | 200 / 0 / 0 / tap-preferred |
+
+Still defined, unbound (Studio fallbacks, no runtime cost): `hm_*`,
+`as_ht`, `mt_fast` / `mt_slow` / `lt_*`, `th_r_rep`, `sl_mo`, `smart_*`,
+core `&mt` / `&lt`. Assigning one of those from Studio next to an `&fht*`
+key brings the two-engine key loss back.
 If a Studio-saved base layer exists on the board, it overrides these
 bindings until Studio restores stock.
 
