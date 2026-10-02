@@ -331,6 +331,46 @@
             keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
         };
 
+        /* Super Delete (&super_del): tap 1 = Backspace, 2 = Option+Backspace,
+         * 3 = Cmd+Backspace; holding on the Nth tap holds that output (OS
+         * auto-repeat). Shift (masked out) morphs each to forward delete:
+         * DEL, Opt+DEL, Cmd+DEL. Other held mods ride through (keep-mods, as
+         * bdel). Core behaviors only; tap-dance and mod-morph both ship
+         * (empty) parameter metadata, so Studio can assign it. 200 ms term:
+         * a lone tap fires 200 ms after release and a hold starts repeating
+         * after 200 ms (inherent to core tap-dance). */
+        sd_1: sd_1 {
+            compatible = "zmk,behavior-mod-morph";
+            #binding-cells = <0>;
+            bindings = <&kp BSPC>, <&kp DEL>;
+            mods = <(MOD_LSFT|MOD_RSFT)>;
+            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
+        };
+
+        sd_2: sd_2 {
+            compatible = "zmk,behavior-mod-morph";
+            #binding-cells = <0>;
+            bindings = <&kp LA(BSPC)>, <&kp LA(DEL)>;
+            mods = <(MOD_LSFT|MOD_RSFT)>;
+            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
+        };
+
+        sd_3: sd_3 {
+            compatible = "zmk,behavior-mod-morph";
+            #binding-cells = <0>;
+            bindings = <&kp LG(BSPC)>, <&kp LG(DEL)>;
+            mods = <(MOD_LSFT|MOD_RSFT)>;
+            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
+        };
+
+        super_del: super_del {
+            compatible = "zmk,behavior-tap-dance";
+            #binding-cells = <0>;
+            display-name = "Super Delete";
+            tapping-term-ms = <200>;
+            bindings = <&sd_1>, <&sd_2>, <&sd_3>;
+        };
+
         th_r_rep: th_r_rep {
             compatible = "zmk,behavior-hold-tap";
             label = "TH_R_REP";
