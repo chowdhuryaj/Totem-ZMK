@@ -54,8 +54,8 @@ manifest:
     - name: zmk-flask-modules
       remote: chowdhuryaj
       # `totem` = flask-parity + Kconfig ZMK_FLASK_FAMILY (meta family id).
-      # ⚠ Local-only until pushed: CI cannot resolve this branch before
-      # `git push origin totem` in zmk-flask-modules.
+      # Tracks the branch tip (origin/totem), so a CI build tomorrow can
+      # differ from today's. Pin to a SHA for the image you flash.
       revision: totem
 
     - name: zmk-switch-layout

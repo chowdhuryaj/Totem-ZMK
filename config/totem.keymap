@@ -307,6 +307,7 @@
 
         swapper: swapper {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "App Switcher (OS)";
             #binding-cells = <0>;
             bindings = <&swapper_win>, <&swapper_mac>;
         };
@@ -323,6 +324,7 @@
 
         bdel: bdel {
             compatible = "zmk,behavior-mod-morph";
+            display-name = "Backspace/Delete";
             label = "BDEL";
             bindings = <&kp BSPC>, <&kp DEL>;
 
@@ -341,6 +343,7 @@
          * after 200 ms (inherent to core tap-dance). */
         sd_1: sd_1 {
             compatible = "zmk,behavior-mod-morph";
+            display-name = "Super Delete 1 (internal)";
             #binding-cells = <0>;
             bindings = <&kp BSPC>, <&kp DEL>;
             mods = <(MOD_LSFT|MOD_RSFT)>;
@@ -349,6 +352,7 @@
 
         sd_2: sd_2 {
             compatible = "zmk,behavior-mod-morph";
+            display-name = "Super Delete 2 (internal)";
             #binding-cells = <0>;
             bindings = <&kp LA(BSPC)>, <&kp LA(DEL)>;
             mods = <(MOD_LSFT|MOD_RSFT)>;
@@ -357,6 +361,7 @@
 
         sd_3: sd_3 {
             compatible = "zmk,behavior-mod-morph";
+            display-name = "Super Delete 3 (internal)";
             #binding-cells = <0>;
             bindings = <&kp LG(BSPC)>, <&kp LG(DEL)>;
             mods = <(MOD_LSFT|MOD_RSFT)>;
@@ -552,6 +557,7 @@
          * Persisted in settings; swap with &sw_layout OS_NEXT. --- */
         sw_layout: sw_layout {
             compatible = "zmk-switch-layout,behavior-switch-layout-mode";
+            display-name = "OS Layout Toggle";
             #binding-cells = <1>;
             layout-count = <2>;
             default-layout = <OS_PC>;
@@ -559,78 +565,90 @@
 
         slk_copycut: slk_copycut {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Copy/Cut (OS)";
             #binding-cells = <0>;
             bindings = <&fmt_copy LC(X) LC(C)>, <&fmt_copy LG(X) LG(C)>;
         };
 
         slk_paste: slk_paste {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Paste (OS)";
             #binding-cells = <0>;
             bindings = <&kp LC(V)>, <&kp LG(V)>;
         };
 
         slk_undoredo: slk_undoredo {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Undo/Redo (OS)";
             #binding-cells = <0>;
             bindings = <&fmt_undo LC(Y) LC(Z)>, <&fmt_undo LG(LS(Z)) LG(Z)>;
         };
 
         slk_selall: slk_selall {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Select All (OS)";
             #binding-cells = <0>;
             bindings = <&kp LC(A)>, <&kp LG(A)>;
         };
 
         slk_close: slk_close {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Close Tab (OS)";
             #binding-cells = <0>;
             bindings = <&kp LC(W)>, <&kp LG(W)>;
         };
 
         slk_ntab: slk_ntab {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "New Tab (OS)";
             #binding-cells = <0>;
             bindings = <&kp LC(T)>, <&kp LG(T)>;
         };
 
         slk_wbspc: slk_wbspc {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Word Backspace (OS)";
             #binding-cells = <0>;
             bindings = <&kp LC(BSPC)>, <&kp LA(BSPC)>;
         };
 
         slk_wdel: slk_wdel {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Word Delete (OS)";
             #binding-cells = <0>;
             bindings = <&kp LC(DEL)>, <&kp LA(DEL)>;
         };
 
         slk_home_down: slk_home_down {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Home/Down (OS)";
             #binding-cells = <0>;
             bindings = <&fmt_nav HOME DOWN_ARROW>, <&fmt_nav LG(LEFT) DOWN_ARROW>;
         };
 
         slk_end_up: slk_end_up {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "End/Up (OS)";
             #binding-cells = <0>;
             bindings = <&fmt_nav END UP>, <&fmt_nav LG(RIGHT) UP>;
         };
 
         slk_wleft: slk_wleft {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Word Left (OS)";
             #binding-cells = <0>;
             bindings = <&fmt_nav LC(LEFT) LEFT_ARROW>, <&fmt_nav LA(LEFT) LEFT_ARROW>;
         };
 
         slk_wright: slk_wright {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Word Right (OS)";
             #binding-cells = <0>;
             bindings = <&fmt_nav LC(RIGHT) RIGHT>, <&fmt_nav LA(RIGHT) RIGHT>;
         };
 
         /* Runtime macros (flask_macros, channel 0x25): &fmac <slot> plays a
-         * live-editable 16-step macro slot (0-15), edited from the Flask
+         * live-editable macro slot (32 slots x 32 steps by default), edited from the Flask
          * app. Unbound by default — assign from Studio / the app's editor;
          * the node existing is what compiles the behavior in and puts it on
          * Studio's behavior list (slot range rides parameter metadata). */
