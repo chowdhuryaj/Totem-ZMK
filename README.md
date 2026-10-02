@@ -6,7 +6,9 @@ half) carrying the Flask feature set from the Cyboard Imprint config
 and RGB: the Totem has no trackballs and no LED strip.
 
 - Flask raw-HID protocol (`zmk-flask-modules`, branch `totem`), meta family
-  id **6** (5 is the GMK70) (`CONFIG_ZMK_FLASK_FAMILY`). Same protocol version as the Imprint.
+  id **6** (5 is the GMK70) (`CONFIG_ZMK_FLASK_FAMILY`). Protocol v17: the
+  Imprint's v16 plus the hold-tap timing channel 0x2A (Imprint's
+  `flask-parity` branch is untouched).
 - Transport: `zzeneg/zmk-raw-hid` pinned to `6a37765` (USB reports sent from
   a static buffer, not the stack; fix of 2026-08-23).
 - Not used: `zmk-smart-sleep` (no-op without `CONFIG_ZMK_SLEEP`, which is off,
@@ -16,6 +18,8 @@ and RGB: the Totem has no trackballs and no LED strip.
 - ZMK Studio over USB (left half), locking off (see `build.yaml`).
 - Runtime combos, macros (`&fmac`), leader (`&fled` + urob `&leader`), tap
   dance (`&ftd`), custom shift keys.
+- Live hold-tap timing (`&fht_l` / `&fht_r` / `&fht`, channel 0x2A): see
+  below.
 - OS switching (`&sw_layout` + `slk_*` keys), app switcher (`&swapper`),
   `&num_word`, adaptive keys (`ak_rti`, `ak_alt`), smart mod/layer.
 
@@ -113,6 +117,36 @@ Imprint positions use its 12/12/12/12/10/6/6 row numbering.
 
 New on the Totem: the Sym layer and its combo (35+36). Sym row 2 adds
 `- = [ ] \ " ~ |`, which the Imprint base did not have.
+
+## Live hold-tap timing (`&fht`)
+
+The home-row/thumb mod-taps run on `zmk,behavior-flask-hold-tap`
+(zmk-flask-modules `flask_holdtap`): core hold-tap logic, but tapping term,
+flavor, quick-tap and require-prior-idle come from a runtime slot **per key
+position**, edited over Flask channel 0x2A and saved with the channel's
+SAVE. Positional rules stay compiled per node: `&fht_l` holds only when a
+right-hand key follows (released), `&fht_r` the mirror, `&fht` has no
+positional rule (for Studio assignment). Boot defaults come from the
+`flask_holdtap_defaults` node, copied from the `hm_*` nodes these keys used
+before. The `hm_*` nodes stay defined so Studio can switch a key back.
+
+| Pos | Binding | Was | Default slot (term / quick-tap / prior-idle / flavor) |
+|---|---|---|---|
+| 20 | `&fht_l LCTRL T` | `&hm_l_shft` | 280 / 175 / 150 / balanced |
+| 31 | `&fht_r RSHFT R` | `&hm_r_shift` | 280 / 175 / 150 / balanced |
+| 32 | `&fht_l LGUI H` | `&hm_l_gui` | 280 / 175 / 150 / tap-preferred |
+| 33 | `&fht_l LSHFT SPACE` | `&hm_l_shft` | 280 / 175 / 150 / balanced |
+| 34 | `&fht_l LCTRL BSPC` | `&hm_l_ctrl` | 280 / 175 / 150 / balanced |
+| 35 | `&fht_r RCTRL DEL` | `&hm_r_ctrl` | 280 / 175 / 150 / balanced |
+| 36 | `&fht_r RSHFT SPACE` | `&hm_r_shift` | 280 / 175 / 150 / balanced |
+| 37 | `&fht_r RGUI L` | `&hm_r_gui` | 280 / 175 / 150 / tap-preferred |
+
+Every other position boots at 200 / 0 / 0 / balanced, which only matters
+once a key there is assigned an `&fht*` node. Unchanged on purpose: the
+`mt_fast` / `mt_slow` / `lt_*` composer variants, `&as`, `th_r_rep`,
+`sl_mo`, `smart_*` and the Fn-layer `slk_*` arrows (still core hold-taps).
+If a Studio-saved base layer exists on the board, it overrides these
+bindings until Studio restores stock.
 
 ## Dropped, and why
 

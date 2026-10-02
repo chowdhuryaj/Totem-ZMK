@@ -386,6 +386,41 @@
             hold-trigger-key-positions = <KEYS_L>;
         };
 
+        /* Live-timing hold-taps (zmk-flask-modules flask_holdtap, Flask
+         * channel 0x2A, proto v17). Core hold-tap semantics, but term /
+         * flavor / quick-tap / prior-idle come from a runtime slot PER KEY
+         * POSITION, so the configurator's per-key slider retunes them
+         * without a reflash. Positional options stay compiled per node:
+         * fht_l = left-hand keys (hold only when the opposite hand
+         * follows), fht_r = right-hand keys, fht = no positional rule
+         * (for Studio assignment anywhere). Boot timing per position:
+         * flask_holdtap_defaults below; the hm_* nodes above are the
+         * compiled originals, kept for reverting from Studio. */
+        fht_l: fht_l {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap L (live)";
+            bindings = <&kp>, <&kp>;
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_R>;
+        };
+
+        fht_r: fht_r {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap R (live)";
+            bindings = <&kp>, <&kp>;
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_L>;
+        };
+
+        fht: fht {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap (live)";
+            bindings = <&kp>, <&kp>;
+        };
+
         sl_mo: sl_mo {
             compatible = "zmk,behavior-hold-tap";
             label = "SL_MO";
@@ -859,6 +894,31 @@
         };
     };
 
+    /* Boot timing for the flask_holdtap slots (slot = key position),
+     * seeded from the hm_* nodes these keys used before (280 / quick-tap
+     * 175 / prior-idle 150; GUI keys tap-preferred, the rest balanced).
+     * Unlisted positions boot at 200 / balanced / 0 / 0. App edits saved
+     * over channel 0x2A win on boot; a slot reset returns here. */
+    flask_holdtap_defaults {
+        compatible = "flask,holdtap-defaults";
+
+        home_mods {
+            key-positions = <20 31 33 34 35 36>;
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+        };
+
+        gui_mods {
+            key-positions = <32 37>;
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+        };
+    };
+
     keymap {
         compatible = "zmk,keymap";
 
@@ -872,8 +932,8 @@
             bindings = <
                          &kp Q                    &kp W                    &kp E                    &kp R                    &kp T    &kp Y                    &kp U                    &kp I                    &kp O                    &kp P
                          &kp A                    &kp S                    &kp D                    &kp F                    &kp G    &kp H                    &kp J                    &kp K                    &kp L                    &kp SEMI
-&hm_l_shft LCTRL T       &kp Z                    &kp X                    &kp C                    &kp V                    &kp B    &kp N                    &kp M                    &kp COMMA                &kp DOT                  &kp FSLH                 &hm_r_shift RSHFT R
-                                                                           &hm_l_gui LGUI H         &hm_l_shft LSHFT SPACE   &hm_l_ctrl LCTRL BSPC    &hm_r_ctrl RCTRL DEL     &hm_r_shift RSHFT SPACE  &hm_r_gui RGUI L
+&fht_l LCTRL T           &kp Z                    &kp X                    &kp C                    &kp V                    &kp B    &kp N                    &kp M                    &kp COMMA                &kp DOT                  &kp FSLH                 &fht_r RSHFT R
+                                                                           &fht_l LGUI H            &fht_l LSHFT SPACE       &fht_l LCTRL BSPC        &fht_r RCTRL DEL         &fht_r RSHFT SPACE       &fht_r RGUI L
             >;
         };
 
