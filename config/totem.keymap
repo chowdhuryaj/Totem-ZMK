@@ -711,6 +711,59 @@
             slot = <46>;
         };
 
+        /* Mouse-layer speed thumbs: hold = speed layer, tap = the key that
+         * thumb taps on Base (F18 / R / Super Delete | Repeat / Space /
+         * Adaptive Key), so the pinky never has to relearn Space. All four
+         * share virtual slot 48: hold-preferred, 200 ms term, quick-tap 150,
+         * prior-idle 0. Any other key pressed while the thumb is down = hold
+         * at once (hold a speed thumb, press move/scroll, the speed applies
+         * immediately); a lone tap = the tap key. Usage: &mlt <layer> <key>,
+         * &msdel / &mrep / &mfak <layer> 0 (param2 is a dummy; &mfak passes
+         * it to &fak as the set). */
+        mlt: mlt {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mouse Layer-Tap";
+            bindings = <&mo>, <&kp>;
+            slot = <48>;
+        };
+
+        msdel: msdel {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mouse Hold / Super Delete";
+            bindings = <&mo>, <&super_del>;
+            slot = <48>;
+        };
+
+        mrep: mrep {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mouse Hold / Repeat";
+            bindings = <&mo>, <&key_repeat>;
+            slot = <48>;
+        };
+
+        mfak: mfak {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mouse Hold / Adaptive Key";
+            bindings = <&mo>, <&fak>;
+            slot = <48>;
+        };
+
+        /* Leader / Shift: tap = Leader, hold = Shift (&lsft LSHFT 0; param2
+         * is a dummy, &leader takes no cell). Virtual slot 49: balanced,
+         * 200 ms term, quick-tap 150, prior-idle 150. Not bound anywhere;
+         * assign from Totem-Flask. */
+        lsft: lsft {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Leader / Shift";
+            bindings = <&kp>, <&leader>;
+            slot = <49>;
+        };
+
         sl_mo: sl_mo {
             compatible = "zmk,behavior-hold-tap";
             label = "SL_MO";
@@ -1171,7 +1224,7 @@
     };
 
     /* Boot timing for the flask_holdtap slots (0-37 = key positions,
-     * 38-47 = virtual slots), key slots seeded from the hm_* nodes these
+     * 38-49 = virtual slots), key slots seeded from the hm_* nodes these
      * keys used before (280 / quick-tap 175 / prior-idle 150; GUI keys
      * tap-preferred, the rest balanced). Unlisted slots boot at 200 /
      * balanced / 0 / 0. tapping-term-ms defaults to 200 here. App edits saved
@@ -1273,6 +1326,25 @@
             require-prior-idle-ms = <150>;
             flavor = "tap-preferred";
         };
+
+        /* Mouse speed thumbs (mlt / msdel / mrep / mfak share this slot). */
+        v_mouse_speed {
+            key-positions = <48>;
+            display-name = "Mouse speed thumbs";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <150>;
+            require-prior-idle-ms = <0>;
+            flavor = "hold-preferred";
+        };
+
+        v_leader_shift {
+            key-positions = <49>;
+            display-name = "Leader / Shift";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <150>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+        };
     };
 
     keymap {
@@ -1362,8 +1434,12 @@
          * Right hand is WASD-shaped: move on 16/17/18 (left/down/right) with
          * move up above the middle finger (7); scroll up/down on 6/8, scroll
          * left/right beside move left/right (15/19).
-         * Thumbs are stacking speed holds (&mo), order-dependent like Svalboard
-         * sniper/turbo (multipliers in the tuning block at the top):
+         * Thumbs are stacking speed holds, order-dependent like Svalboard
+         * sniper/turbo (multipliers in the tuning block at the top). Each
+         * also taps its Base key (&mlt / &msdel / &mrep / &mfak, slot 48,
+         * hold-preferred 200 ms: another key pressed while the thumb is
+         * down = hold at once; a lone tap = F18 / R / Super Delete | Repeat /
+         * Space / Adaptive Key, same as Base):
          *   32/37 L_SCROLL_SLOW  scroll /3
          *   33/36 L_SCROLL_FAST  scroll x3
          *   34/35 L_MOUSE_SLOW   pointer /3
@@ -1377,6 +1453,7 @@
          *  bisect  MCLK    RCLK    LCLK    hdrag     | scr_L  mv_L   mv_D   mv_R   scr_R
          *  ESC  hdblclk  hrclick  menu  savepos rstpos | MB4  MB5  monSel monNxt monPrv  .
          *                  scrSlow scrFast mouseSlow | mouseSlow scrFast scrSlow
+         *   taps (hold-tap):  F18      R       SuperDel  | Repeat    Space   AdaptiveKey
          */
         mouse {
             display-name = "Mouse";
@@ -1384,12 +1461,12 @@
                          &neru_hints              &neru_m G                &neru_m R                &neru_m S                &ht_mouse L_MOUSE L_MOUSE    &none                    &msc SCRL_UP             &mmv MOVE_UP             &msc SCRL_DOWN           &none
                          &neru_m B                &mkp MCLK                &mkp RCLK                &mkp LCLK                &neru_m D                    &msc SCRL_LEFT           &mmv MOVE_LEFT           &mmv MOVE_DOWN           &mmv MOVE_RIGHT          &msc SCRL_RIGHT
 &kp ESC                  &neru_m N2               &neru_m C                &neru_menu               &neru_ms X               &neru_ms Z                   &mkp MB4                 &mkp MB5                 &neru_m M                &neru_ms N               &neru_ms P               &none
-                                                                           &mo L_SCROLL_SLOW        &mo L_SCROLL_FAST        &mo L_MOUSE_SLOW             &mo L_MOUSE_SLOW         &mo L_SCROLL_FAST        &mo L_SCROLL_SLOW
+                                                                           &mlt L_SCROLL_SLOW F18   &mlt L_SCROLL_FAST R    &msdel L_MOUSE_SLOW 0        &mrep L_MOUSE_SLOW 0     &mlt L_SCROLL_FAST SPACE &mfak L_SCROLL_SLOW 0
             >;
         };
 
-        /* Precision overlay: held by &mo on L_MOUSE thumbs 34/35. Thumbs 33/36
-         * = &mo L_AMP_DOWN (pointer /15); the rest is &trans so L_MOUSE keys
+        /* Precision overlay: held by &msdel / &mrep on L_MOUSE thumbs 34/35. Thumbs
+         * 33/36 = &mlt L_AMP_DOWN (tap R / Space; pointer /15); the rest is &trans so L_MOUSE keys
          * show through. The /3 is the input-listener override on
          * &mmv_input_listener (top of file). */
         mouse_slow {
@@ -1398,7 +1475,7 @@
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
-                        &trans  &mo L_AMP_DOWN  &trans    &trans  &mo L_AMP_DOWN  &trans
+                        &trans  &mlt L_AMP_DOWN R  &trans    &trans  &mlt L_AMP_DOWN SPACE  &trans
             >;
         };
 
@@ -1414,7 +1491,7 @@
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
-                        &trans  &mo L_AMP_DOWN  &trans    &trans  &mo L_AMP_DOWN  &trans
+                        &trans  &mlt L_AMP_DOWN R  &trans    &trans  &mlt L_AMP_DOWN SPACE  &trans
             >;
         };
         scroll_fast {
@@ -1423,7 +1500,7 @@
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
-                        &mo L_AMP_UP  &trans  &trans    &trans  &trans  &mo L_AMP_UP
+                        &mlt L_AMP_UP F18  &trans  &trans    &trans  &trans  &mfak L_AMP_UP 0
             >;
         };
         amp_up {
