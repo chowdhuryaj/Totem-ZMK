@@ -28,11 +28,18 @@
 #include <dt-bindings/zmk/outputs.h>
 #include <dt-bindings/zmk-switch-layout/switch-layout.h>
 
+/* Layer IDs = devicetree node order below (Studio stores per-layer overrides
+ * by id, so never reorder the layer nodes). AJ's names: Navigation (was
+ * Control), Function (was Fn), Number (was Sym; digits + keypad ops),
+ * Numpad (was Num; the &num_word target).
+ * Order note: the board shows Number before Function because Studio's saved
+ * layer order is 0,1,3,2,4. After a settings reset the order follows the ids
+ * (Function at index 2, Number at 3) unless it is reordered again in Studio. */
 #define L_BASE    0
-#define L_CONTROL 1
-#define L_FN      2
-#define L_SYM     3
-#define L_NUM     4
+#define L_NAV     1
+#define L_FUNC    2
+#define L_NUMBER  3
+#define L_NUMPAD  4
 #define L_MOUSE      5
 #define L_MOUSE_SLOW 6
 
@@ -46,12 +53,12 @@
 #define FHT_TRIG_L KEYS_R 20 32 33 34
 #define FHT_TRIG_R KEYS_L 31 35 36 37
 
-/* Control-layer nav keys the app switcher ignores (see swapper below). */
+/* Navigation-layer nav keys the app switcher ignores (see swapper below). */
 #define SWAP_NAV 7 8 9 16 17 18 19
 
 /* OS mode = switch-layout index (mctechnology17/zmk-switch-layout), stored in
  * settings so it survives reboot/reflash. slk_* behaviors below pick the
- * right chord per OS; &sw_layout OS_NEXT (Control layer, position 25)
+ * right chord per OS; &sw_layout OS_NEXT (Navigation layer, position 25)
  * toggles. */
 #define OS_PC  0
 #define OS_MAC 1
@@ -317,8 +324,8 @@
             alt_rbkt    { trigger-keys = <RBKT>;  bindings = <&kp LBKT>; };
         };
 
-        /* Smart num layer (urob/zmk-auto-layer): &num_word L_NUM latches the
-         * num layer; digits and the continue-list keep it alive, anything
+        /* Smart num layer (urob/zmk-auto-layer): &num_word L_NUMPAD latches
+         * the Numpad layer; digits and the continue-list keep it alive, anything
          * else drops back. */
         num_word: num_word {
             compatible = "zmk,behavior-auto-layer";
@@ -330,11 +337,11 @@
 
         /* App switcher (urob/zmk-tri-state): tap = mod+Tab and the mod STAYS
          * HELD; more taps cycle; any non-ignored key press (or releasing the
-         * Control layer) drops the mod and commits. OS-aware since 2026-07-08:
+         * Navigation layer) drops the mod and commits. OS-aware since 2026-07-08:
          * &swapper is a switch-layout-key wrapping two tri-states — ⌘ on mac,
          * Alt on PC — following the same persisted &sw_layout OS_NEXT toggle
          * as every slk_* key (ZMK has no host-OS auto-detection; zmk#2553).
-         * Ignored positions (SWAP_NAV) = Control's ⇧Tab/Up/Tab (7 8 9) and
+         * Ignored positions (SWAP_NAV) = Navigation's ⇧Tab/Up/Tab (7 8 9) and
          * Enter/arrows (16-19) so the app grid can be navigated mid-swap.
          * ⇧Tab (7) doubles as the reverse key: shift applies to whichever
          * mod the swapper holds, so one reverse key serves both OSes. (The
@@ -550,7 +557,7 @@
         flt_ctl: flt_ctl {
             compatible = "zmk,behavior-flask-hold-tap";
             #binding-cells = <2>;
-            display-name = "Layer-Tap Control combo (live)";
+            display-name = "Layer-Tap Navigation (live)";
             bindings = <&mo>, <&kp>;
             slot = <38>;
         };
@@ -558,7 +565,7 @@
         flt_fn: flt_fn {
             compatible = "zmk,behavior-flask-hold-tap";
             #binding-cells = <2>;
-            display-name = "Layer-Tap Fn combo (live)";
+            display-name = "Layer-Tap Function (live)";
             bindings = <&mo>, <&kp>;
             slot = <39>;
         };
@@ -1130,13 +1137,13 @@
          * as_ht = 200 tap-preferred. */
         v_ctl_combo {
             key-positions = <38>;
-            display-name = "Control combo (32+33)";
+            display-name = "Navigation layer-tap (flt_ctl)";
             flavor = "tap-preferred";
         };
 
         v_fn_combo {
             key-positions = <39>;
-            display-name = "Fn combo (33+34)";
+            display-name = "Function layer-tap (flt_fn)";
             flavor = "tap-preferred";
         };
 
@@ -1163,7 +1170,7 @@
 
         v_autoshift {
             key-positions = <43>;
-            display-name = "Sym autoshift digits";
+            display-name = "Autoshift digits";
             flavor = "tap-preferred";
         };
 
@@ -1207,75 +1214,75 @@
     keymap {
         compatible = "zmk,keymap";
 
-        /* Imprint base minus the number row (→ Sym layer), the bottom row
-         * (→ Fn / Sym / Control) and the trackball buttons (dropped). Outer
-         * bottom keys carry the Imprint's lower-thumb T/Ctrl and R/Shift.
-         * Layers: Control = thumb combo 32+33 (hold), Fn = 33+34 (hold),
-         * Sym = 35+36 (hold), Num = &num_word on Control. README has the
-         * full relocation table. */
+        /* Mirrors the keymap on AJ's board (Studio RPC dump, 2026-10-03):
+         * custom alpha base. Thumbs, left: &smart_layer Function, &lt
+         * Navigation (R), &ht_sdel Number (tap Super Delete); right:
+         * &ht_rep Number (tap Repeat), &lt Navigation (SPACE), &ht_fak
+         * Function (tap Adaptive Key). Numpad = &num_word on Navigation. */
         base {
+            display-name = "Base";
             bindings = <
-                         &kp Q                    &kp W                    &kp E                    &kp R                    &kp T    &kp Y                    &kp U                    &kp I                    &kp O                    &kp P
-                         &kp A                    &kp S                    &kp D                    &kp F                    &kp G    &kp H                    &kp J                    &kp K                    &kp L                    &kp SEMI
-&fht_l LCTRL T           &kp Z                    &kp X                    &kp C                    &kp V                    &kp B    &kp N                    &kp M                    &kp COMMA                &kp DOT                  &kp FSLH                 &fht_r RSHFT R
-                                                                           &fht_l LGUI H            &fht_l LSHFT SPACE       &fht_l LCTRL BSPC        &fht_r RCTRL DEL         &fht_r RSHFT SPACE       &fht_r RGUI L
+                                    &kp F           &kp X          &kp L                       &kp K        &kp F18              &kp SQT             &kp Y            &kp O             &kp U          &kp P
+                                    &fht_l LCTRL N  &fht_l LALT S  &fht_l LGUI H               &kp T        &kp M                &kp G               &kp C            &fht_r RGUI A     &fht_r RALT E  &fht_r RCTRL I
+            &fht_l LA(LG(LCTRL)) B  &fht_l LSHFT Z  &kp V          &kp J                       &kp D        &kp N1               &kp SEMI            &kp W            &kp COMMA         &kp DOT        &fht_r RSHFT FSLH  &fht_r RA(RG(RCTRL)) Q
+                                                                   &smart_layer L_FUNC L_FUNC  &lt L_NAV R  &ht_sdel L_NUMBER 0  &ht_rep L_NUMBER 0  &lt L_NAV SPACE  &ht_fak L_FUNC 0
             >;
         };
 
-        /* Held by thumb combo 32+33 (&flt_ctl L_CONTROL Z). Nav/media rows are the
-         * Imprint's control rows 1-3; the number-row and thumb items (swapper,
-         * num_word, BT, OS toggle, reset, studio_unlock) moved into the slots
-         * the trackball/RGB keys (&bswap, &frgb, &ext_power, &asc) left. */
+        /* Navigation: held by the middle thumbs (&lt L_NAV on 33 / 36). Nav and
+         * media rows, plus swapper, num_word, BT, OS toggle, reset and
+         * studio_unlock. Position 4 is the mouse layer key (added after the
+         * board dump this layer was copied from). */
         control {
+            display-name = "Navigation";
             bindings = <
-                    &kp C_VOL_UP        &kp HOME            &kp UP              &kp END             &ht_mouse L_MOUSE L_MOUSE    &swapper            &ak_alt             &kp LS(TAB)         &kp UP              &kp TAB
-                    &kp C_VOL_DN        &kp LEFT            &kp DOWN            &kp RIGHT           &leader    &caps_word          &kp RET             &kp LEFT            &kp DOWN            &kp RIGHT
-&bootloader         &kp C_MUTE          &kp C_PP            &kp C_REWIND        &kp C_FF            &sw_layout OS_NEXT    &num_word L_NUM     &bt BT_CLR          &studio_unlock      &to L_BASE          &bt BT_SEL 3        &sys_reset
-                                                            &trans              &trans              &trans    &bt BT_SEL 0        &bt BT_SEL 1        &bt BT_SEL 2
+                           &kp C_VOL_UP  &kp HOME  &kp UP        &kp END    &ht_mouse L_MOUSE L_MOUSE  &swapper            &ak_alt       &kp LS(TAB)     &kp UP      &kp TAB
+                           &kp C_VOL_DN  &kp LEFT  &kp DOWN      &kp RIGHT  &leader                    &caps_word          &kp ENTER     &kp LEFT        &kp DOWN    &kp RIGHT
+            &kp LG(SPACE)  &kp C_MUTE    &kp C_PP  &kp C_REWIND  &kp C_FF   &sw_layout OS_NEXT         &num_word L_NUMPAD  &bt BT_CLR    &studio_unlock  &to L_BASE  &bt BT_SEL 3  &sys_reset
+                                                   &trans        &trans     &trans                     &bt BT_SEL 0        &bt BT_SEL 1  &bt BT_SEL 2
             >;
         };
 
-        /* Held by thumb combo 33+34 (&flt_fn L_FN X). Imprint fn rows 1-3 verbatim;
-         * the free top-right slots carry the Imprint base bottom-row OS-aware
-         * arrows (tap = arrow, hold = home/end/word jump). */
+        /* Function: F1-F24. Left outer thumb = &smart_layer (tap latches),
+         * right outer thumb = &ht_fak (hold). */
         fn {
+            display-name = "Function";
             bindings = <
-                &kp F1          &kp F2          &kp F3          &kp F4          &kp F13    &trans          &slk_home_down  &slk_end_up     &slk_wleft      &slk_wright
-                &kp F5          &kp F6          &kp F7          &kp F8          &kp F14    &kp F16         &kp F17         &kp F18         &kp F19         &kp F20
-&trans          &kp F9          &kp F10         &kp F11         &kp F12         &kp F15    &kp F21         &kp F22         &kp F23         &kp F24         &none           &trans
-                                                &trans          &trans          &trans    &trans          &trans          &trans
+                                        &kp F1  &kp F2   &kp F3   &kp F4   &kp F13  &kp F16  &kp F17       &kp F18  &kp F19  &kp F20
+                                        &kp F5  &kp F6   &kp F7   &kp F8   &kp F14  &kp F21  &kp F22       &kp F23  &kp F24  &trans
+            &smart_layer L_FUNC L_FUNC  &kp F9  &kp F10  &kp F11  &kp F12  &kp F15  &trans   &trans        &trans   &trans   &trans   &trans
+                                                         &trans   &trans   &trans   &trans   &mo L_NUMBER  &trans
             >;
         };
 
-        /* NEW on the Totem (no number row): held by thumb combo 35+36. Top
-         * row = the Imprint's autoshift digit row verbatim (&as: tap digit,
-         * hold = shifted). Row 2 = the shifted symbols as direct taps; row 3
-         * = grave (Imprint base bottom row) plus symbols the Imprint only
-         * reached through its num layer or not at all. */
+        /* Number: digits plus keypad operators (mirrored per hand), held by the
+         * inner thumbs (&ht_sdel / &ht_rep). */
         sym {
+            display-name = "Number";
             bindings = <
-           &as N1     &as N2     &as N3     &as N4     &as N5    &as N6     &as N7     &as N8     &as N9     &as N0
-           &kp EXCL   &kp AT     &kp HASH   &kp DLLR   &kp PRCNT    &kp CARET  &kp AMPS   &kp STAR   &kp LPAR   &kp RPAR
-&trans     &kp GRAVE  &kp MINUS  &kp EQUAL  &kp LBKT   &kp RBKT    &kp BSLH   &kp SQT    &kp DQT    &kp TILDE  &kp PIPE   &trans
-                                 &trans     &trans     &trans    &trans     &trans     &trans
+                    &kp KP_DIVIDE  &kp KP_MULTIPLY  &kp KP_MINUS  &kp KP_PLUS  &kp KP_EQUAL  &kp KP_EQUAL  &kp KP_PLUS  &kp KP_MINUS  &kp KP_MULTIPLY  &kp KP_DIVIDE
+                    &kp N1         &kp N2           &kp N3        &kp N4       &kp N5        &kp N5        &kp N4       &kp N3        &kp N2           &kp N1
+            &kp N0  &kp N6         &kp N7           &kp N8        &kp N9       &trans        &trans        &kp N9       &kp N8        &kp N7           &kp N6         &kp N0
+                                                    &trans        &trans       &trans        &trans        &trans       &trans
             >;
         };
 
-        /* Smart-num layer — latched by &num_word (auto-layer). Right-hand
+        /* Numpad layer, latched by &num_word (auto-layer). Right-hand
          * numpad as on the Imprint; the Imprint's outer-column operators and
          * its 0 . , bottom row moved onto the inner column, the right outer key
          * and the inner right thumb (0). Digits + the num_word continue-list
          * keep it alive, anything else exits. */
         num {
+            display-name = "Numpad";
             bindings = <
-           &trans     &trans     &trans     &trans     &trans    &kp MINUS  &kp N7     &kp N8     &kp N9     &kp FSLH
-           &trans     &trans     &trans     &trans     &trans    &kp COMMA  &kp N4     &kp N5     &kp N6     &kp STAR
-&trans     &trans     &trans     &trans     &trans     &trans    &kp DOT    &kp N1     &kp N2     &kp N3     &kp PLUS   &kp EQUAL
-                                 &trans     &trans     &trans    &kp N0     &trans     &trans
+                    &trans  &trans  &trans  &trans  &trans  &kp MINUS  &kp N7  &kp N8  &kp N9  &kp FSLH
+                    &trans  &trans  &trans  &trans  &trans  &kp COMMA  &kp N4  &kp N5  &kp N6  &kp STAR
+            &trans  &trans  &trans  &trans  &trans  &trans  &kp DOT    &kp N1  &kp N2  &kp N3  &kp PLUS  &kp EQUAL
+                                    &trans  &trans  &trans  &kp N0     &trans  &trans
             >;
         };
 
-        /* Mouse layer (&ht_mouse L_MOUSE L_MOUSE on Control pos 4; tap toggles,
+        /* Mouse layer (&ht_mouse L_MOUSE L_MOUSE on Navigation pos 4; tap toggles,
          * hold = momentary). Neru keys send the laptop chords: hints =
          * Cmd+Shift+Space (then to L_BASE to type the label); neru_menu =
          * Ctrl+Opt+Space; neru_m X = menu chord + letter X, then to L_BASE
@@ -1321,7 +1328,7 @@
         /* Blank spares: ZMK's total layer capacity is the compiled
          * devicetree child count — Studio's add-layer only reuses slots freed
          * by remove-layer. Four all-&trans spares (same as the Imprint) give
-         * 11 layers for live editing (base..num, mouse, mouse slow, spares). Nothing in firmware references these. */
+         * 11 layers for live editing (base..numpad, mouse, mouse slow, spares). Nothing in firmware references these. */
         spare1 {
             bindings = <
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
