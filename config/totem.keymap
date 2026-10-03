@@ -341,16 +341,21 @@
                 bindings = <&kp SPACE &sk LSHFT>;
             };
 
+            /* Was BSPC -> &slk_wbspc / DEL -> &slk_wdel. Removed 2026-10-03:
+             * Super Delete presses the same slk keys, and fak + sd holding
+             * one at once left Backspace stuck. These two now equal the
+             * fallback (plain Key Repeat) and stay only as placeholders:
+             * fak_defaults seeds &fak rules by position (these are rules
+             * 22-23), so deleting them would shift ak_alt's rules 24-34
+             * onto indexes that may hold saved app edits. */
             rti_bspc {
                 trigger-keys = <BSPC>;
-                max-prior-idle-ms = <500>;
-                bindings = <&slk_wbspc>;
+                bindings = <&key_repeat>;
             };
 
             rti_del {
                 trigger-keys = <DEL>;
-                max-prior-idle-ms = <500>;
-                bindings = <&slk_wdel>;
+                bindings = <&key_repeat>;
             };
         };
 
