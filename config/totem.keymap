@@ -1342,21 +1342,25 @@
          * monitor_select, F19 next monitor, F20 previous monitor. Unused keys
          * are &none, never &trans: on a toggled layer a &trans press would
          * auto-exit the layer and type the base key (CONFIG_ZMK_FLASK_LAYER_AUTOEXIT).
+         * Clicks go through Neru so they act at a hints/grid selection:
+         * home row left = Hyper+F17 left, Hyper+F18 right, CAG+F14 middle
+         * (from idle they click at the cursor). Thumbs 32/33 = raw firmware
+         * LCLK/RCLK for held drags and when Neru is not running.
          * Thumb 34 = &mo L_MOUSE_SLOW (hold: move/scroll at 1/4 speed). Move =
          * h j k l (15-18), scroll = the same columns one row up (5-8).
          *
          *  hints   grid    rgrid   scroll  [mouse]   | scr_L  scr_D  scr_U  scr_R  .
-         *  .       MCLK    RCLK    LCLK    drag      | mv_L   mv_D   mv_U   mv_R   .
+         *  .       N-mid   N-right N-left  drag      | mv_L   mv_D   mv_U   mv_R   .
          *  .  dblclk  exit  savepos rstpos bisect    | MB4    MB5    monSel monNxt monPrv  .
-         *                       .   .  slow          | .      .      .
+         *                     LCLK RCLK slow         | .      .      .
          */
         mouse {
             display-name = "Mouse";
             bindings = <
                          &kp NERU_H(F13)          &kp NERU_H(F14)          &kp NERU_H(F15)          &kp NERU_H(F16)          &ht_mouse L_MOUSE L_MOUSE    &msc SCRL_LEFT           &msc SCRL_DOWN           &msc SCRL_UP             &msc SCRL_RIGHT          &none
-                         &none                    &mkp MCLK                &mkp RCLK                &mkp LCLK                &kp NERU_H(F20)              &mmv MOVE_LEFT           &mmv MOVE_DOWN           &mmv MOVE_UP             &mmv MOVE_RIGHT          &none
+                         &none                    &kp NERU_C(F14)          &kp NERU_H(F18)          &kp NERU_H(F17)          &kp NERU_H(F20)              &mmv MOVE_LEFT           &mmv MOVE_DOWN           &mmv MOVE_UP             &mmv MOVE_RIGHT          &none
 &none                    &kp NERU_H(F19)          &kp NERU_C(F13)          &kp NERU_C(F16)          &kp NERU_C(F17)          &kp NERU_C(F15)              &mkp MB4                 &mkp MB5                 &kp NERU_C(F18)          &kp NERU_C(F19)          &kp NERU_C(F20)          &none
-                                                                           &none                    &none                    &mo L_MOUSE_SLOW             &none                    &none                    &none
+                                                                           &mkp LCLK                &mkp RCLK                &mo L_MOUSE_SLOW             &none                    &none                    &none
             >;
         };
 
