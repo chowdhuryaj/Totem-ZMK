@@ -435,18 +435,21 @@
          * channel 0x2A, proto v17). Core hold-tap semantics, but term /
          * flavor / quick-tap / prior-idle come from a runtime slot PER KEY
          * POSITION, so the configurator's per-key slider retunes them
-         * without a reflash. Positional options stay compiled per node:
-         * fht_l = left-hand keys (hold only when the opposite hand
-         * follows), fht_r = right-hand keys, fht = no positional rule
-         * (for Studio assignment anywhere). Boot timing per position:
-         * flask_holdtap_defaults below; the hm_* nodes above are the
-         * compiled originals, kept for reverting from Studio. */
+         * without a reflash. Positional rule compiled per node (the
+         * boot rule, "mode 0" of value 0x53, which can override it per
+         * slot): fht_l = left-hand keys, fht_r = right-hand keys. The
+         * first other key counts at its PRESS (no
+         * hold-trigger-on-release): a same-hand key pressed while the
+         * hold-tap is undecided forces TAP even if the term runs out
+         * first; an opposite-hand key allows HOLD. fht = no positional
+         * rule (for Studio assignment anywhere). Boot timing per
+         * position: flask_holdtap_defaults below; the hm_* nodes above
+         * are the compiled originals, kept for reverting from Studio. */
         fht_l: fht_l {
             compatible = "zmk,behavior-flask-hold-tap";
             #binding-cells = <2>;
             display-name = "Hold-Tap L (live)";
             bindings = <&kp>, <&kp>;
-            hold-trigger-on-release;
             hold-trigger-key-positions = <KEYS_R>;
         };
 
@@ -455,7 +458,6 @@
             #binding-cells = <2>;
             display-name = "Hold-Tap R (live)";
             bindings = <&kp>, <&kp>;
-            hold-trigger-on-release;
             hold-trigger-key-positions = <KEYS_L>;
         };
 
