@@ -26,7 +26,7 @@
 #define MOUSE_ACCEL_EXP   1     /* 0 uniform, 1 linear, 2 quadratic */
 #define SCROLL_SPEED_PCT  100   /* 100% = 20 notches/s */
 #define SCROLL_RAMP_MS    150
-#define SCROLL_ACCEL_EXP  1
+#define SCROLL_ACCEL_EXP  0     /* constant speed: a short tap still scrolls >= 1 notch */
 /* Stacking speed holds (L_MOUSE thumbs). One hold = x// SPEED_STEP; adding the
  * second hold multiplies by AMP_STEP on top, so the pair = SPEED_STEP * AMP_STEP
  * (3 * 5 = 15). */
@@ -742,7 +742,9 @@
             display-name = "OS Layout Toggle";
             #binding-cells = <1>;
             layout-count = <2>;
-            default-layout = <OS_PC>;
+            /* Only applies on a board with no saved setting (after a settings
+             * wipe); the persisted choice wins otherwise. AJ is on Mac. */
+            default-layout = <OS_MAC>;
         };
 
         slk_copycut: slk_copycut {
