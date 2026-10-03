@@ -57,11 +57,6 @@
 #define OS_MAC 1
 #define OS_NEXT ZMK_SWITCH_LAYOUT_NEXT
 
-/* Neru chords (~/.config/neru/config.toml [hotkeys]); Neru matches modifier
- * flags exactly, so these send precisely these modifiers. */
-#define NERU_H(k) LC(LA(LG(LS(k))))
-#define NERU_C(k) LC(LA(LG(k)))
-
 &mt {
     quick-tap-ms = <150>;
     flavor = "tap-preferred";
@@ -965,18 +960,21 @@
             bindings = <&kp LS(TAB)>;
             key-positions = <11 1>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         tab {
             bindings = <&kp TAB>;
             key-positions = <12 2>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         lesc {
             bindings = <&kp ESC>;
             key-positions = <0 10>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         paste {
@@ -1000,30 +998,35 @@
             key-positions = <14 4>;
             timeout-ms = <35>;
             require-prior-idle-ms = <140>;
+            layers = <L_BASE>;
         };
 
         ent {
             bindings = <&kp ENTER>;
             key-positions = <3 13>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         close {
             bindings = <&slk_close>;
             key-positions = <13 24>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         ntab {
             bindings = <&slk_ntab>;
             key-positions = <12 23>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         quit {
             bindings = <&kp LG(Q)>;
             key-positions = <10 21>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         rbtab {
@@ -1161,6 +1164,61 @@
                 <&macro_pause_for_release>,
                 <&macro_release>,
                 <&macro_param_1to1 &macro_param_1to2 &fas_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>;
+        };
+
+        /* Neru laptop chords (Neru matches modifiers exactly).
+         * Timing: tap-ms 20 (chord held 20 ms so macOS registers it),
+         * wait-ms 15 between steps; neru_m/neru_ms wait 60 ms after the
+         * Ctrl+Opt+Space menu chord before the letter. */
+        neru_hints: neru_hints {
+            compatible = "zmk,behavior-macro";
+            label = "NERU_HINTS";
+            display-name = "Neru Hints";
+            #binding-cells = <0>;
+            wait-ms = <15>;
+            tap-ms = <20>;
+            bindings = <&kp LG(LS(SPACE))>, <&to L_BASE>;
+        };
+
+        neru_menu: neru_menu {
+            compatible = "zmk,behavior-macro";
+            label = "NERU_MENU";
+            display-name = "Neru Menu";
+            #binding-cells = <0>;
+            wait-ms = <15>;
+            tap-ms = <20>;
+            bindings = <&kp LC(LA(SPACE))>, <&to L_BASE>;
+        };
+
+        neru_m: neru_m {
+            compatible = "zmk,behavior-macro-one-param";
+            label = "NERU_M";
+            display-name = "Neru Menu + Key (to base)";
+            #binding-cells = <1>;
+            wait-ms = <15>;
+            tap-ms = <20>;
+            bindings =
+                <&macro_tap>,
+                <&kp LC(LA(SPACE))>,
+                <&macro_wait_time 60>,
+                <&macro_tap>,
+                <&macro_param_1to1 &kp MACRO_PLACEHOLDER>,
+                <&to L_BASE>;
+        };
+
+        neru_ms: neru_ms {
+            compatible = "zmk,behavior-macro-one-param";
+            label = "NERU_MS";
+            display-name = "Neru Menu + Key (stay)";
+            #binding-cells = <1>;
+            wait-ms = <15>;
+            tap-ms = <20>;
+            bindings =
+                <&macro_tap>,
+                <&kp LC(LA(SPACE))>,
+                <&macro_wait_time 60>,
+                <&macro_tap>,
+                <&macro_param_1to1 &kp MACRO_PLACEHOLDER>;
         };
 
         qu: qu {
@@ -1348,30 +1406,31 @@
         };
 
         /* Mouse layer (&ht_mouse L_MOUSE L_MOUSE on Control pos 4; tap toggles,
-         * hold = momentary). Neru chord -> function: Hyper+F13 hints, F14 grid,
-         * F15 recursive_grid, F16 scroll, F19 double click, F20 drag toggle;
-         * CAG+F13 exit, F15 bisect, F16 save cursor, F17 restore cursor, F18
-         * monitor_select, F19 next monitor, F20 previous monitor. Unused keys
-         * are &none, never &trans: on a toggled layer a &trans press would
-         * auto-exit the layer and type the base key (CONFIG_ZMK_FLASK_LAYER_AUTOEXIT).
-         * Clicks go through Neru so they act at a hints/grid selection:
-         * home row left = Hyper+F17 left, Hyper+F18 right, CAG+F14 middle
-         * (from idle they click at the cursor). Thumbs 32/33 = raw firmware
-         * LCLK/RCLK for held drags and when Neru is not running.
+         * hold = momentary). Neru keys send the laptop chords: hints =
+         * Cmd+Shift+Space (then to L_BASE to type the label); neru_menu =
+         * Ctrl+Opt+Space; neru_m X = menu chord + letter X, then to L_BASE
+         * (modes that take typing: g grid, r rgrid, b bisect, s scroll, c hints
+         * right-click, 2 hints double-click, d hints drag, m monitor select);
+         * neru_ms X = same but stays on L_MOUSE (n next monitor, p previous
+         * monitor, x save cursor, z restore cursor). Unused keys are &none,
+         * never &trans: on a toggled layer a &trans press would auto-exit the
+         * layer and type the base key (CONFIG_ZMK_FLASK_LAYER_AUTOEXIT).
+         * Home row left = firmware middle/right/left click (plain &mkp).
+         * Thumbs 32/33 = raw LCLK/RCLK for held drags.
          * Thumb 34 = &mo L_MOUSE_SLOW (hold: move/scroll at 1/4 speed). Move =
          * h j k l (15-18), scroll = the same columns one row up (5-8).
          *
          *  hints   grid    rgrid   scroll  [mouse]   | scr_L  scr_D  scr_U  scr_R  .
-         *  .       N-mid   N-right N-left  drag      | mv_L   mv_D   mv_U   mv_R   .
-         *  .  dblclk  exit  savepos rstpos bisect    | MB4    MB5    monSel monNxt monPrv  .
+         *  bisect  MCLK    RCLK    LCLK    hdrag     | mv_L   mv_D   mv_U   mv_R   .
+         *  ESC  hdblclk  hrclick  menu  savepos rstpos | MB4  MB5  monSel monNxt monPrv  .
          *                     LCLK RCLK slow         | .      .      .
          */
         mouse {
             display-name = "Mouse";
             bindings = <
-                         &kp NERU_H(F13)          &kp NERU_H(F14)          &kp NERU_H(F15)          &kp NERU_H(F16)          &ht_mouse L_MOUSE L_MOUSE    &msc SCRL_LEFT           &msc SCRL_DOWN           &msc SCRL_UP             &msc SCRL_RIGHT          &none
-                         &none                    &kp NERU_C(F14)          &kp NERU_H(F18)          &kp NERU_H(F17)          &kp NERU_H(F20)              &mmv MOVE_LEFT           &mmv MOVE_DOWN           &mmv MOVE_UP             &mmv MOVE_RIGHT          &none
-&none                    &kp NERU_H(F19)          &kp NERU_C(F13)          &kp NERU_C(F16)          &kp NERU_C(F17)          &kp NERU_C(F15)              &mkp MB4                 &mkp MB5                 &kp NERU_C(F18)          &kp NERU_C(F19)          &kp NERU_C(F20)          &none
+                         &neru_hints              &neru_m G                &neru_m R                &neru_m S                &ht_mouse L_MOUSE L_MOUSE    &msc SCRL_LEFT           &msc SCRL_DOWN           &msc SCRL_UP             &msc SCRL_RIGHT          &none
+                         &neru_m B                &mkp MCLK                &mkp RCLK                &mkp LCLK                &neru_m D                    &mmv MOVE_LEFT           &mmv MOVE_DOWN           &mmv MOVE_UP             &mmv MOVE_RIGHT          &none
+&kp ESC                  &neru_m N2               &neru_m C                &neru_menu               &neru_ms X               &neru_ms Z                   &mkp MB4                 &mkp MB5                 &neru_m M                &neru_ms N               &neru_ms P               &none
                                                                            &mkp LCLK                &mkp RCLK                &mo L_MOUSE_SLOW             &none                    &none                    &none
             >;
         };
