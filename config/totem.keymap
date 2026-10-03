@@ -950,11 +950,15 @@
     flask_combos_defaults {
         compatible = "flask,combos-defaults";
 
+        /* Gated to L_BASE (layers takes one entry): on L_MOUSE these positions
+         * are clicks / scroll+move columns / thumb clicks and fire by accident:
+         * copy_cut, paste, undo_redo, rbtab, rtab, resc, rent, z, x. */
         copy_cut {
             bindings = <&slk_copycut>;
             key-positions = <12 11>;
             timeout-ms = <35>;
             require-prior-idle-ms = <150>;
+            layers = <L_BASE>;
         };
 
         lbtab {
@@ -980,6 +984,7 @@
             key-positions = <13 12>;
             timeout-ms = <35>;
             require-prior-idle-ms = <150>;
+            layers = <L_BASE>;
         };
 
         undo_redo {
@@ -987,6 +992,7 @@
             key-positions = <11 10>;
             timeout-ms = <35>;
             require-prior-idle-ms = <150>;
+            layers = <L_BASE>;
         };
 
         sel_all {
@@ -1024,24 +1030,28 @@
             bindings = <&kp LS(TAB)>;
             key-positions = <8 18>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         rtab {
             bindings = <&kp TAB>;
             key-positions = <7 17>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         resc {
             bindings = <&kp ESC>;
             key-positions = <9 19>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         rent {
             bindings = <&kp ENTER>;
             key-positions = <6 16>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         excl {
@@ -1100,12 +1110,14 @@
             bindings = <&flt_ctl L_CONTROL Z>;
             key-positions = <32 33>;
             timeout-ms = <50>;
+            layers = <L_BASE>;
         };
 
         x {
             bindings = <&flt_fn L_FN X>;
             key-positions = <33 34>;
             timeout-ms = <35>;
+            layers = <L_BASE>;
         };
 
         sym {
