@@ -764,6 +764,29 @@
             slot = <49>;
         };
 
+        /* Mouse-layer Neru keys with a modifier on hold (so Cmd/Shift/etc.
+         * + click still works on L_MOUSE): tap = the Neru action, hold =
+         * the modifier. Both share virtual slot 50: balanced, 200 ms term,
+         * quick-tap 150, prior-idle 0. The hold side is a plain &kp, so it
+         * never runs the macro's &to L_BASE; only a tap does. Usage:
+         * &nmod_h LCTRL 0 (neru_hints takes no cell, param2 is a dummy),
+         * &nmod_m LALT G (param2 reaches neru_m's one macro param). */
+        nmod_h: nmod_h {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod / Neru Hints";
+            bindings = <&kp>, <&neru_hints>;
+            slot = <50>;
+        };
+
+        nmod_m: nmod_m {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod / Neru Menu Key";
+            bindings = <&kp>, <&neru_m>;
+            slot = <50>;
+        };
+
         sl_mo: sl_mo {
             compatible = "zmk,behavior-hold-tap";
             label = "SL_MO";
@@ -1224,7 +1247,7 @@
     };
 
     /* Boot timing for the flask_holdtap slots (0-37 = key positions,
-     * 38-49 = virtual slots), key slots seeded from the hm_* nodes these
+     * 38-50 = virtual slots), key slots seeded from the hm_* nodes these
      * keys used before (280 / quick-tap 175 / prior-idle 150; GUI keys
      * tap-preferred, the rest balanced). Unlisted slots boot at 200 /
      * balanced / 0 / 0. tapping-term-ms defaults to 200 here. App edits saved
@@ -1337,6 +1360,15 @@
             flavor = "hold-preferred";
         };
 
+        v_mouse_neru_mod {
+            key-positions = <50>;
+            display-name = "Mouse Neru mod-taps";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <150>;
+            require-prior-idle-ms = <0>;
+            flavor = "balanced";
+        };
+
         v_leader_shift {
             key-positions = <49>;
             display-name = "Leader / Shift";
@@ -1431,6 +1463,10 @@
          * never &trans: on a toggled layer a &trans press would auto-exit the
          * layer and type the base key (CONFIG_ZMK_FLASK_LAYER_AUTOEXIT).
          * Home row left = firmware middle/right/left click (plain &mkp).
+         * Top row left 0-3 are Neru taps with a modifier on hold (&nmod_h /
+         * &nmod_m, slot 50, balanced 200 ms): Ctrl = hints, Alt = grid, Cmd =
+         * rgrid, Shift = scroll mode. Tap = the Neru action; hold a mod then
+         * press a click key (e.g. Cmd + LCLK on pos 13).
          * Right hand is WASD-shaped: move on 16/17/18 (left/down/right) with
          * move up above the middle finger (7); scroll up/down on 6/8, scroll
          * left/right beside move left/right (15/19).
@@ -1458,7 +1494,7 @@
         mouse {
             display-name = "Mouse";
             bindings = <
-                         &neru_hints              &neru_m G                &neru_m R                &neru_m S                &ht_mouse L_MOUSE L_MOUSE    &none                    &msc SCRL_UP             &mmv MOVE_UP             &msc SCRL_DOWN           &none
+                         &nmod_h LCTRL 0          &nmod_m LALT G           &nmod_m LGUI R           &nmod_m LSHFT S          &ht_mouse L_MOUSE L_MOUSE    &none                    &msc SCRL_UP             &mmv MOVE_UP             &msc SCRL_DOWN           &none
                          &neru_m B                &mkp MCLK                &mkp RCLK                &mkp LCLK                &neru_m D                    &msc SCRL_LEFT           &mmv MOVE_LEFT           &mmv MOVE_DOWN           &mmv MOVE_RIGHT          &msc SCRL_RIGHT
 &kp ESC                  &neru_m N2               &neru_m C                &neru_menu               &neru_ms X               &neru_ms Z                   &mkp MB4                 &mkp MB5                 &neru_m M                &neru_ms N               &neru_ms P               &none
                                                                            &mlt L_SCROLL_SLOW F18   &mlt L_SCROLL_FAST R    &msdel L_MOUSE_SLOW 0        &mrep L_MOUSE_SLOW 0     &mlt L_SCROLL_FAST SPACE &mfak L_SCROLL_SLOW 0
