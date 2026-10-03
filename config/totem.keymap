@@ -339,47 +339,67 @@
             keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
         };
 
-        /* Super Delete (&super_del): tap 1 = Backspace, 2 = Option+Backspace,
-         * 3 = Cmd+Backspace; holding on the Nth tap holds that output (OS
-         * auto-repeat). Shift (masked out) morphs each to forward delete:
-         * DEL, Opt+DEL, Cmd+DEL. Other held mods ride through (keep-mods, as
-         * bdel). Core behaviors only; tap-dance and mod-morph both ship
-         * (empty) parameter metadata, so Studio can assign it. 200 ms term:
-         * a lone tap fires 200 ms after release and a hold starts repeating
-         * after 200 ms (inherent to core tap-dance). */
-        sd_1: sd_1 {
-            compatible = "zmk,behavior-mod-morph";
-            display-name = "Super Delete 1 (internal)";
+        /* Super Delete (&super_del): eager. Tap 1 = Backspace the instant it is
+         * pressed; tap 2 within 400 ms (press to press) = word delete; tap 3+
+         * = line delete. Holding any step holds that key (OS auto-repeat).
+         * Shift (masked out) morphs the whole chain to forward delete.
+         * Other held mods ride through (keep-mods, as bdel). A pause over
+         * 400 ms starts the chain over. Word/line are OS-aware (slk_*):
+         * Mac Opt+BSPC / Cmd+BSPC, Windows Ctrl+BSPC for both (no Cmd).
+         * Each step is an adaptive key (urob/zmk-adaptive-key) that looks at
+         * the last keycode sent: a word/line backspace -> line delete, a
+         * plain BSPC -> word delete. Triggers are checked in order and the
+         * mod-carrying one must come first (a BSPC trigger also matches
+         * Opt+BSPC, since matching is non-strict). Difference from the old
+         * tap-dance: tap 2 sends BSPC then word delete, not a single word
+         * delete, so it differs only after a one-letter word. Outer node is
+         * core mod-morph (ships Studio metadata), name kept so the Studio
+         * binding survives. */
+        sd_bspc: sd_bspc {
+            compatible = "zmk,behavior-adaptive-key";
+            label = "SD_BSPC";
             #binding-cells = <0>;
-            bindings = <&kp BSPC>, <&kp DEL>;
-            mods = <(MOD_LSFT|MOD_RSFT)>;
-            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
+            bindings = <&kp BSPC>;
+
+            sd_bspc_line {
+                trigger-keys = <LG(BSPC) LA(BSPC) LC(BSPC)>;
+                max-prior-idle-ms = <400>;
+                bindings = <&slk_lbspc>;
+            };
+
+            sd_bspc_word {
+                trigger-keys = <BSPC>;
+                max-prior-idle-ms = <400>;
+                bindings = <&slk_wbspc>;
+            };
         };
 
-        sd_2: sd_2 {
-            compatible = "zmk,behavior-mod-morph";
-            display-name = "Super Delete 2 (internal)";
+        sd_del: sd_del {
+            compatible = "zmk,behavior-adaptive-key";
+            label = "SD_DEL";
             #binding-cells = <0>;
-            bindings = <&kp LA(BSPC)>, <&kp LA(DEL)>;
-            mods = <(MOD_LSFT|MOD_RSFT)>;
-            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
-        };
+            bindings = <&kp DEL>;
 
-        sd_3: sd_3 {
-            compatible = "zmk,behavior-mod-morph";
-            display-name = "Super Delete 3 (internal)";
-            #binding-cells = <0>;
-            bindings = <&kp LG(BSPC)>, <&kp LG(DEL)>;
-            mods = <(MOD_LSFT|MOD_RSFT)>;
-            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
+            sd_del_line {
+                trigger-keys = <LG(DEL) LA(DEL) LC(DEL)>;
+                max-prior-idle-ms = <400>;
+                bindings = <&slk_ldel>;
+            };
+
+            sd_del_word {
+                trigger-keys = <DEL>;
+                max-prior-idle-ms = <400>;
+                bindings = <&slk_wdel>;
+            };
         };
 
         super_del: super_del {
-            compatible = "zmk,behavior-tap-dance";
+            compatible = "zmk,behavior-mod-morph";
             #binding-cells = <0>;
             display-name = "Super Delete";
-            tapping-term-ms = <200>;
-            bindings = <&sd_1>, <&sd_2>, <&sd_3>;
+            bindings = <&sd_bspc>, <&sd_del>;
+            mods = <(MOD_LSFT|MOD_RSFT)>;
+            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
         };
 
         th_r_rep: th_r_rep {
@@ -626,6 +646,21 @@
             display-name = "Word Delete (OS)";
             #binding-cells = <0>;
             bindings = <&kp LC(DEL)>, <&kp LA(DEL)>;
+        };
+
+        /* Line delete for Super Delete: Cmd on mac, Ctrl (word delete) on PC. */
+        slk_lbspc: slk_lbspc {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Line Backspace (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(BSPC)>, <&kp LG(BSPC)>;
+        };
+
+        slk_ldel: slk_ldel {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Line Delete (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(DEL)>, <&kp LG(DEL)>;
         };
 
         slk_home_down: slk_home_down {
