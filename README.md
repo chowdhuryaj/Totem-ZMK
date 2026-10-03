@@ -125,8 +125,10 @@ The home-row/thumb mod-taps run on `zmk,behavior-flask-hold-tap`
 flavor, quick-tap and require-prior-idle come from a runtime slot **per key
 position**, edited over Flask channel 0x2A and saved with the channel's
 SAVE. Boot positional rule compiled per node: `&fht_l` holds only when the
-first other key pressed is a right-hand key (counted at its press, so a
-left-hand roll stays a tap even past the term), `&fht_r` the mirror, `&fht`
+first other key pressed is a right-hand key or another left `&fht_l` key
+(20, 32-34, so thumb-mod chords like Ctrl+Shift hold), counted at its press,
+so a left-hand roll onto a plain key stays a tap even past the term;
+`&fht_r` the mirror (31, 35-37), `&fht`
 has no positional rule (for Studio assignment). Value 0x53 overrides the
 rule per slot at runtime (mode 0 = this compiled rule). Boot defaults come from the
 `flask_holdtap_defaults` node, copied from the `hm_*` nodes these keys used

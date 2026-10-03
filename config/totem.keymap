@@ -27,6 +27,12 @@
 #define KEYS_L 0 1 2 3 4 10 11 12 13 14 20 21 22 23 24 25 32 33 34
 #define KEYS_R 5 6 7 8 9 15 16 17 18 19 26 27 28 29 30 31 35 36 37
 
+/* Hold triggers for the live fht_l / fht_r: the opposite hand plus the
+ * same-hand fht keys (20, 32-34 left; 31, 35-37 right), so a same-hand
+ * thumb-mod chord (Ctrl+Shift) still holds. */
+#define FHT_TRIG_L KEYS_R 20 32 33 34
+#define FHT_TRIG_R KEYS_L 31 35 36 37
+
 /* Control-layer nav keys the app switcher ignores (see swapper below). */
 #define SWAP_NAV 7 8 9 16 17 18 19
 
@@ -439,9 +445,10 @@
          * boot rule, "mode 0" of value 0x53, which can override it per
          * slot): fht_l = left-hand keys, fht_r = right-hand keys. The
          * first other key counts at its PRESS (no
-         * hold-trigger-on-release): a same-hand key pressed while the
-         * hold-tap is undecided forces TAP even if the term runs out
-         * first; an opposite-hand key allows HOLD. fht = no positional
+         * hold-trigger-on-release): a same-hand plain key pressed while
+         * the hold-tap is undecided forces TAP even if the term runs out
+         * first; an opposite-hand key or a same-hand fht key (thumb-mod
+         * chords) allows HOLD (FHT_TRIG_L / FHT_TRIG_R). fht = no positional
          * rule (for Studio assignment anywhere). Boot timing per
          * position: flask_holdtap_defaults below; the hm_* nodes above
          * are the compiled originals, kept for reverting from Studio. */
@@ -450,7 +457,7 @@
             #binding-cells = <2>;
             display-name = "Hold-Tap L (live)";
             bindings = <&kp>, <&kp>;
-            hold-trigger-key-positions = <KEYS_R>;
+            hold-trigger-key-positions = <FHT_TRIG_L>;
         };
 
         fht_r: fht_r {
@@ -458,7 +465,7 @@
             #binding-cells = <2>;
             display-name = "Hold-Tap R (live)";
             bindings = <&kp>, <&kp>;
-            hold-trigger-key-positions = <KEYS_L>;
+            hold-trigger-key-positions = <FHT_TRIG_R>;
         };
 
         fht: fht {
