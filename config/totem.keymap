@@ -42,6 +42,8 @@
 #define L_NUMPAD  4
 #define L_MOUSE      5
 #define L_MOUSE_SLOW 6
+#define L_SCROLL_SLOW 7   /* reused spare1 */
+#define L_SCROLL_FAST 8   /* reused spare2 */
 
 /* Opposite-hand positions for the positional home-row/thumb hold-taps. */
 #define KEYS_L 0 1 2 3 4 10 11 12 13 14 20 21 22 23 24 25 32 33 34
@@ -83,10 +85,11 @@
     acceleration-exponent = <0>;
 };
 
-/* Precision: while L_MOUSE_SLOW is active (&mo on a thumb of L_MOUSE) move
- * and scroll run at 1/4 speed. A layer override replaces the listener's base
- * processors on that layer (no process-next); the scalers track remainders,
- * so tiny steps are not lost. */
+/* Speed holds (&mo on L_MOUSE thumbs): L_MOUSE_SLOW = pointer at 1/4;
+ * L_SCROLL_SLOW = scroll at 1/4; L_SCROLL_FAST = scroll at 3x. A layer
+ * override replaces the listener's base processors on that layer (no
+ * process-next); the scalers track remainders, so tiny steps are not lost.
+ * zip_scroll_scaler takes mul/div as plain integers, so 3/1 is valid. */
 &mmv_input_listener {
     mouse_slow {
         layers = <L_MOUSE_SLOW>;
@@ -95,9 +98,14 @@
 };
 
 &msc_input_listener {
-    mouse_slow {
-        layers = <L_MOUSE_SLOW>;
+    scroll_slow {
+        layers = <L_SCROLL_SLOW>;
         input-processors = <&zip_scroll_scaler 1 4>;
+    };
+
+    scroll_fast {
+        layers = <L_SCROLL_FAST>;
+        input-processors = <&zip_scroll_scaler 3 1>;
     };
 };
 
@@ -1293,28 +1301,31 @@
          * never &trans: on a toggled layer a &trans press would auto-exit the
          * layer and type the base key (CONFIG_ZMK_FLASK_LAYER_AUTOEXIT).
          * Home row left = firmware middle/right/left click (plain &mkp).
-         * Thumbs 32/33 = raw LCLK/RCLK for held drags.
-         * Thumb 34 = &mo L_MOUSE_SLOW (hold: move/scroll at 1/4 speed). Move =
-         * h j k l (15-18), scroll = the same columns one row up (5-8).
+         * Right hand is WASD-shaped: move on 16/17/18 (left/down/right) with
+         * move up above the middle finger (7); scroll up/down on 6/8, scroll
+         * left/right beside move left/right (15/19).
+         * Thumbs are speed holds (&mo): 32 and 37 = L_SCROLL_SLOW (scroll 1/4),
+         * 33 and 36 = L_SCROLL_FAST (scroll 3x), 34 and 35 = L_MOUSE_SLOW
+         * (pointer 1/4). Clicks stay on the left home row.
          *
-         *  hints   grid    rgrid   scroll  [mouse]   | scr_L  scr_D  scr_U  scr_R  .
-         *  bisect  MCLK    RCLK    LCLK    hdrag     | mv_L   mv_D   mv_U   mv_R   .
+         *  hints   grid    rgrid   scroll  [mouse]   | .      scr_U  mv_U   scr_D  .
+         *  bisect  MCLK    RCLK    LCLK    hdrag     | scr_L  mv_L   mv_D   mv_R   scr_R
          *  ESC  hdblclk  hrclick  menu  savepos rstpos | MB4  MB5  monSel monNxt monPrv  .
-         *                     LCLK RCLK slow         | .      .      .
+         *                  scrSlow scrFast mouseSlow | mouseSlow scrFast scrSlow
          */
         mouse {
             display-name = "Mouse";
             bindings = <
-                         &neru_hints              &neru_m G                &neru_m R                &neru_m S                &ht_mouse L_MOUSE L_MOUSE    &msc SCRL_LEFT           &msc SCRL_DOWN           &msc SCRL_UP             &msc SCRL_RIGHT          &none
-                         &neru_m B                &mkp MCLK                &mkp RCLK                &mkp LCLK                &neru_m D                    &mmv MOVE_LEFT           &mmv MOVE_DOWN           &mmv MOVE_UP             &mmv MOVE_RIGHT          &none
+                         &neru_hints              &neru_m G                &neru_m R                &neru_m S                &ht_mouse L_MOUSE L_MOUSE    &none                    &msc SCRL_UP             &mmv MOVE_UP             &msc SCRL_DOWN           &none
+                         &neru_m B                &mkp MCLK                &mkp RCLK                &mkp LCLK                &neru_m D                    &msc SCRL_LEFT           &mmv MOVE_LEFT           &mmv MOVE_DOWN           &mmv MOVE_RIGHT          &msc SCRL_RIGHT
 &kp ESC                  &neru_m N2               &neru_m C                &neru_menu               &neru_ms X               &neru_ms Z                   &mkp MB4                 &mkp MB5                 &neru_m M                &neru_ms N               &neru_ms P               &none
-                                                                           &mkp LCLK                &mkp RCLK                &mo L_MOUSE_SLOW             &none                    &none                    &none
+                                                                           &mo L_SCROLL_SLOW        &mo L_SCROLL_FAST        &mo L_MOUSE_SLOW             &mo L_MOUSE_SLOW         &mo L_SCROLL_FAST        &mo L_SCROLL_SLOW
             >;
         };
 
-        /* Precision overlay: held by &mo on L_MOUSE thumb 34. All &trans so
-         * L_MOUSE keys show through; the 1/4 scaling is the input-listener
-         * override on &mmv_input_listener / &msc_input_listener (top of file). */
+        /* Precision overlay: held by &mo on L_MOUSE thumbs 34/35. All &trans so
+         * L_MOUSE keys show through; the 1/4 pointer scaling is the
+         * input-listener override on &mmv_input_listener (top of file). */
         mouse_slow {
             display-name = "Mouse Slow";
             bindings = <
@@ -1329,7 +1340,11 @@
          * devicetree child count — Studio's add-layer only reuses slots freed
          * by remove-layer. Four all-&trans spares (same as the Imprint) give
          * 11 layers for live editing (base..numpad, mouse, mouse slow, spares). Nothing in firmware references these. */
-        spare1 {
+        /* Scroll speed overlays (layers 7, 8; were spare1/spare2, IDs unchanged
+         * so Studio's per-layer-ID edits and saved order stay valid). All
+         * &trans; the scaling is the &msc_input_listener override. */
+        scroll_slow {
+            display-name = "Scroll Slow";
             bindings = <
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
@@ -1337,7 +1352,8 @@
                         &trans  &trans  &trans    &trans  &trans  &trans
             >;
         };
-        spare2 {
+        scroll_fast {
+            display-name = "Scroll Fast";
             bindings = <
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
