@@ -53,10 +53,10 @@ manifest:
 
     - name: zmk-flask-modules
       remote: chowdhuryaj
-      # `totem` = flask-parity + Kconfig ZMK_FLASK_FAMILY (meta family id).
-      # Tracks the branch tip (origin/totem), so a CI build tomorrow can
-      # differ from today's. Pin to a SHA for the image you flash.
-      revision: totem
+      # Branch `unify` (totem line + autoshift, proto v19), shared with the
+      # Imprint. Pinned by SHA so a branch push never changes this image;
+      # bump deliberately, together with Cyboard-ZMK.
+      revision: 28b8b8b6c6adb9e2aee13545184a137b94941a9f
 
     - name: zmk-switch-layout
       remote: mctechnology17

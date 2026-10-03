@@ -5,10 +5,11 @@ half) carrying the Flask feature set from the Cyboard Imprint config
 (`Cyboard-ZMK`, branch `flask-parity`). Everything except pointing devices
 and RGB: the Totem has no trackballs and no LED strip.
 
-- Flask raw-HID protocol (`zmk-flask-modules`, branch `totem`), meta family
-  id **6** (5 is the GMK70) (`CONFIG_ZMK_FLASK_FAMILY`). Protocol v17: the
-  Imprint's v16 plus the hold-tap timing channel 0x2A (Imprint's
-  `flask-parity` branch is untouched).
+- Flask raw-HID protocol (`zmk-flask-modules`, branch `unify`, pinned by
+  SHA in `config/west.yml`), meta family id **6** (5 is the GMK70)
+  (`CONFIG_ZMK_FLASK_FAMILY`). Protocol v19: hold-tap timing 0x2A (v17),
+  adaptive keys 0x2B (v18), auto shift + retro shift 0x2C (v19, ships off).
+  The Imprint builds the same `unify` branch.
 - Transport: `zzeneg/zmk-raw-hid` pinned to `6a37765` (USB reports sent from
   a static buffer, not the stack; fix of 2026-08-23).
 - Not used: `zmk-smart-sleep` (no-op without `CONFIG_ZMK_SLEEP`, which is off,
@@ -157,7 +158,7 @@ flask nodes that read VIRTUAL slots after the 38 key positions (a node's
 | Slot | Node | Used by | Was | Default |
 |---|---|---|---|---|
 | 38 | `&flt_ctl` | base middle thumbs 33 (R) + 36 (SPACE), Navigation | `&lt` | 200 / 0 / 0 / tap-preferred |
-| 39 | `&flt_fn` | combo x 33+34 (Fn) | `&lt` | 200 / 0 / 0 / tap-preferred |
+| 39 | `&flt_fn` | base left outer thumb 32 (Function, tap F18) | `&lt` | 200 / 0 / 0 / tap-preferred |
 | 40 | `&fmt_copy` | `slk_copycut` (combo 11+12) | `&mt` | 200 / 150 / 0 / tap-preferred |
 | 41 | `&fmt_undo` | `slk_undoredo` (combo 10+11) | `&mt` | 200 / 150 / 0 / tap-preferred |
 | 42 | `&fmt_nav` | Fn-layer `slk_home_down` / `slk_end_up` / `slk_wleft` / `slk_wright` | `&mt` | 200 / 150 / 0 / tap-preferred |
