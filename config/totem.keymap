@@ -607,7 +607,8 @@
          * as_ht and read VIRTUAL slots (38+) instead of a key position, so
          * a combo never borrows a thumb's timing. Defaults = the core values
          * they replace (flask_holdtap_defaults below). The core nodes stay
-         * defined, unbound, for Studio. */
+         * defined, unbound, for Studio. flt_ctl = base middle thumbs 33 / 36
+         * (&flt_ctl L_NAV R / SPACE), both on slot 38. */
         flt_ctl: flt_ctl {
             compatible = "zmk,behavior-flask-hold-tap";
             #binding-cells = <2>;
@@ -1191,7 +1192,7 @@
          * the core behaviors they replace: &lt = 200 tap-preferred; &mt =
          * 200 tap-preferred quick-tap 150 (the &mt override up top);
          * as_ht = 200 tap-preferred. */
-        v_ctl_combo {
+        v_nav_lt {
             key-positions = <38>;
             display-name = "Navigation layer-tap (flt_ctl)";
             flavor = "tap-preferred";
@@ -1271,9 +1272,9 @@
         compatible = "zmk,keymap";
 
         /* Mirrors the keymap on AJ's board (Studio RPC dump, 2026-10-03):
-         * custom alpha base. Thumbs, left: &flt_fn Function (tap F18), &lt
+         * custom alpha base. Thumbs, left: &flt_fn Function (tap F18), &flt_ctl
          * Navigation (R), &ht_sdel Number (tap Super Delete); right:
-         * &ht_rep Number (tap Repeat), &lt Navigation (SPACE), &ht_fak
+         * &ht_rep Number (tap Repeat), &flt_ctl Navigation (SPACE), &ht_fak
          * Function (tap Adaptive Key). Numpad = &num_word on Navigation. */
         base {
             display-name = "Base";
@@ -1281,11 +1282,11 @@
                                     &kp F           &kp X          &kp L                       &kp K        &kp Q                &kp SQT             &kp Y            &kp O             &kp U          &kp P
                                     &fht_l LCTRL N  &fht_l LALT S  &fht_l LGUI H               &kp T        &kp M                &kp G               &kp C            &fht_r RGUI A     &fht_r RALT E  &fht_r RCTRL I
             &fht_l LA(LG(LCTRL)) B  &fht_l LSHFT Z  &kp V          &kp J                       &kp D        &kp N1               &kp SEMI            &kp W            &kp COMMA         &kp DOT        &fht_r RSHFT FSLH  &fht_r RA(RG(RCTRL)) Q
-                                                                   &flt_fn L_FUNC F18          &lt L_NAV R  &ht_sdel L_NUMBER 0  &ht_rep L_NUMBER 0  &lt L_NAV SPACE  &ht_fak L_FUNC 0
+                                                                   &flt_fn L_FUNC F18          &flt_ctl L_NAV R  &ht_sdel L_NUMBER 0  &ht_rep L_NUMBER 0  &flt_ctl L_NAV SPACE  &ht_fak L_FUNC 0
             >;
         };
 
-        /* Navigation: held by the middle thumbs (&lt L_NAV on 33 / 36). Nav and
+        /* Navigation: held by the middle thumbs (&flt_ctl L_NAV on 33 / 36). Nav and
          * media rows, plus swapper, num_word, BT, OS toggle, reset and
          * studio_unlock. Position 4 is the mouse layer key (added after the
          * board dump this layer was copied from). */

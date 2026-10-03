@@ -156,7 +156,7 @@ flask nodes that read VIRTUAL slots after the 38 key positions (a node's
 
 | Slot | Node | Used by | Was | Default |
 |---|---|---|---|---|
-| 38 | `&flt_ctl` | combo z 32+33 (Control) | `&lt` | 200 / 0 / 0 / tap-preferred |
+| 38 | `&flt_ctl` | base middle thumbs 33 (R) + 36 (SPACE), Navigation | `&lt` | 200 / 0 / 0 / tap-preferred |
 | 39 | `&flt_fn` | combo x 33+34 (Fn) | `&lt` | 200 / 0 / 0 / tap-preferred |
 | 40 | `&fmt_copy` | `slk_copycut` (combo 11+12) | `&mt` | 200 / 150 / 0 / tap-preferred |
 | 41 | `&fmt_undo` | `slk_undoredo` (combo 10+11) | `&mt` | 200 / 150 / 0 / tap-preferred |
