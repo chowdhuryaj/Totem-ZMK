@@ -550,6 +550,31 @@
             slot = <43>;
         };
 
+        /* Tap-leaning layer hold-taps, Studio-assignable: &ht_sdel <layer> 0
+         * and &ht_rep <layer> 0 (param2 is a dummy; the tap binding takes
+         * no cell). Flask engine, virtual slots 44 / 45: 280 ms term,
+         * tap-preferred, quick-tap 400 ms, prior-idle 150 ms. First press
+         * held past 280 ms = layer; a tap = Super Delete / Repeat; a press
+         * within 400 ms of the last press of the same key is a forced tap
+         * on press (word / line delete, holdable for OS repeat), never a
+         * layer. A press within 150 ms of a typed key is a tap. */
+        ht_sdel: ht_sdel {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Super Delete / Layer";
+            bindings = <&mo>, <&super_del>;
+            slot = <44>;
+        };
+
+        /* Same timing as ht_sdel, tap = Repeat (virtual slot 45). */
+        ht_rep: ht_rep {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Repeat / Layer";
+            bindings = <&mo>, <&key_repeat>;
+            slot = <45>;
+        };
+
         sl_mo: sl_mo {
             compatible = "zmk,behavior-hold-tap";
             label = "SL_MO";
@@ -1080,7 +1105,7 @@
     };
 
     /* Boot timing for the flask_holdtap slots (0-37 = key positions,
-     * 38-43 = virtual slots), key slots seeded from the hm_* nodes these
+     * 38-45 = virtual slots), key slots seeded from the hm_* nodes these
      * keys used before (280 / quick-tap 175 / prior-idle 150; GUI keys
      * tap-preferred, the rest balanced). Unlisted slots boot at 200 /
      * balanced / 0 / 0. tapping-term-ms defaults to 200 here. App edits saved
@@ -1144,6 +1169,24 @@
         v_autoshift {
             key-positions = <43>;
             display-name = "Sym autoshift digits";
+            flavor = "tap-preferred";
+        };
+
+        v_sdel_layer {
+            key-positions = <44>;
+            display-name = "Super Delete / Layer";
+            tapping-term-ms = <280>;
+            quick-tap-ms = <400>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        v_rep_layer {
+            key-positions = <45>;
+            display-name = "Repeat / Layer";
+            tapping-term-ms = <280>;
+            quick-tap-ms = <400>;
+            require-prior-idle-ms = <150>;
             flavor = "tap-preferred";
         };
     };
