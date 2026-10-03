@@ -937,202 +937,52 @@
     };
 
     /* Combos = RUNTIME slots (flask_combos, channel 0x24) seeded from this
-     * node, same as the Imprint: each child seeds one slot in declaration
-     * order; app edits and deletions persist and win on boot. Imprint's 28
-     * defaults translated to Totem positions, minus the two mouse-button
-     * combos (m4/m5); the three thumb combos moved to adjacent thumb pairs
-     * and a Sym-layer combo was added (27 total). */
+     * node: each child seeds one slot in declaration order (child i = slot
+     * i); app edits and deletions persist and win on boot. These 8 mirror
+     * AJ's app combos as of 2026-10-03 (slots 0-7), so a settings reset
+     * restores them. All layers, global timeout and prior-idle. The two
+     * thumb combos in slots 8-9 were temporary and are not seeded. */
     flask_combos_defaults {
         compatible = "flask,combos-defaults";
-
-        /* Gated to L_BASE (layers takes one entry): on L_MOUSE these positions
-         * are clicks / scroll+move columns / thumb clicks and fire by accident:
-         * copy_cut, paste, undo_redo, rbtab, rtab, resc, rent, z, x. */
-        copy_cut {
-            bindings = <&slk_copycut>;
-            key-positions = <12 11>;
-            timeout-ms = <35>;
-            require-prior-idle-ms = <150>;
-            layers = <L_BASE>;
-        };
-
-        lbtab {
-            bindings = <&kp LS(TAB)>;
-            key-positions = <11 1>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
-        };
-
-        tab {
-            bindings = <&kp TAB>;
-            key-positions = <12 2>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
-        };
-
-        lesc {
-            bindings = <&kp ESC>;
-            key-positions = <0 10>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
-        };
-
-        paste {
-            bindings = <&slk_paste>;
-            key-positions = <13 12>;
-            timeout-ms = <35>;
-            require-prior-idle-ms = <150>;
-            layers = <L_BASE>;
-        };
-
-        undo_redo {
-            bindings = <&slk_undoredo>;
-            key-positions = <11 10>;
-            timeout-ms = <35>;
-            require-prior-idle-ms = <150>;
-            layers = <L_BASE>;
-        };
-
-        sel_all {
-            bindings = <&slk_selall>;
-            key-positions = <14 4>;
-            timeout-ms = <35>;
-            require-prior-idle-ms = <140>;
-            layers = <L_BASE>;
-        };
 
         ent {
             bindings = <&kp ENTER>;
             key-positions = <3 13>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
         };
 
-        close {
-            bindings = <&slk_close>;
-            key-positions = <13 24>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
+        tab {
+            bindings = <&kp TAB>;
+            key-positions = <2 12>;
         };
 
-        ntab {
-            bindings = <&slk_ntab>;
-            key-positions = <12 23>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
+        rent {
+            bindings = <&kp ENTER>;
+            key-positions = <16 6>;
         };
 
-        quit {
-            bindings = <&kp LG(Q)>;
-            key-positions = <10 21>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
-        };
-
-        rbtab {
+        lbtab {
             bindings = <&kp LS(TAB)>;
-            key-positions = <8 18>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
+            key-positions = <1 11>;
         };
 
         rtab {
             bindings = <&kp TAB>;
             key-positions = <7 17>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
+        };
+
+        rbtab {
+            bindings = <&kp LS(TAB)>;
+            key-positions = <8 18>;
+        };
+
+        lesc {
+            bindings = <&kp ESC>;
+            key-positions = <0 10>;
         };
 
         resc {
             bindings = <&kp ESC>;
             key-positions = <9 19>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
-        };
-
-        rent {
-            bindings = <&kp ENTER>;
-            key-positions = <6 16>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
-        };
-
-        excl {
-            bindings = <&kp EXCL>;
-            key-positions = <5 6>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
-        };
-
-        /* Base only: 15+16 are mouse left+down on L_MOUSE, and a diagonal
-         * press lands inside the 35 ms window. */
-        dot {
-            bindings = <&kp DOT>;
-            key-positions = <15 16>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
-        };
-
-        comma {
-            bindings = <&kp COMMA>;
-            key-positions = <26 27>;
-            timeout-ms = <35>;
-        };
-
-        semi {
-            bindings = <&kp SEMI>;
-            key-positions = <26 15>;
-            timeout-ms = <35>;
-        };
-
-        quote {
-            bindings = <&kp SQT>;
-            key-positions = <17 28>;
-            timeout-ms = <35>;
-        };
-
-        fslhq {
-            bindings = <&kp FSLH>;
-            key-positions = <16 27>;
-            timeout-ms = <35>;
-        };
-
-        lbkt {
-            bindings = <&kp LEFT_BRACKET>;
-            key-positions = <18 29>;
-            timeout-ms = <35>;
-        };
-
-        rbkt {
-            bindings = <&kp RBKT>;
-            key-positions = <19 30>;
-            timeout-ms = <35>;
-        };
-
-        z {
-            bindings = <&flt_ctl L_CONTROL Z>;
-            key-positions = <32 33>;
-            timeout-ms = <50>;
-            layers = <L_BASE>;
-        };
-
-        x {
-            bindings = <&flt_fn L_FN X>;
-            key-positions = <33 34>;
-            timeout-ms = <35>;
-            layers = <L_BASE>;
-        };
-
-        sym {
-            bindings = <&mo L_SYM>;
-            key-positions = <35 36>;
-            timeout-ms = <35>;
-        };
-
-        rrep {
-            bindings = <&key_repeat>;
-            key-positions = <36 37>;
-            timeout-ms = <35>;
         };
     };
 
