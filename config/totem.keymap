@@ -1215,7 +1215,7 @@
         compatible = "zmk,keymap";
 
         /* Mirrors the keymap on AJ's board (Studio RPC dump, 2026-10-03):
-         * custom alpha base. Thumbs, left: &smart_layer Function, &lt
+         * custom alpha base. Thumbs, left: &flt_fn Function (tap F18), &lt
          * Navigation (R), &ht_sdel Number (tap Super Delete); right:
          * &ht_rep Number (tap Repeat), &lt Navigation (SPACE), &ht_fak
          * Function (tap Adaptive Key). Numpad = &num_word on Navigation. */
@@ -1225,7 +1225,7 @@
                                     &kp F           &kp X          &kp L                       &kp K        &kp F18              &kp SQT             &kp Y            &kp O             &kp U          &kp P
                                     &fht_l LCTRL N  &fht_l LALT S  &fht_l LGUI H               &kp T        &kp M                &kp G               &kp C            &fht_r RGUI A     &fht_r RALT E  &fht_r RCTRL I
             &fht_l LA(LG(LCTRL)) B  &fht_l LSHFT Z  &kp V          &kp J                       &kp D        &kp N1               &kp SEMI            &kp W            &kp COMMA         &kp DOT        &fht_r RSHFT FSLH  &fht_r RA(RG(RCTRL)) Q
-                                                                   &smart_layer L_FUNC L_FUNC  &lt L_NAV R  &ht_sdel L_NUMBER 0  &ht_rep L_NUMBER 0  &lt L_NAV SPACE  &ht_fak L_FUNC 0
+                                                                   &flt_fn L_FUNC F18          &lt L_NAV R  &ht_sdel L_NUMBER 0  &ht_rep L_NUMBER 0  &lt L_NAV SPACE  &ht_fak L_FUNC 0
             >;
         };
 
@@ -1243,7 +1243,7 @@
             >;
         };
 
-        /* Function: F1-F24. Left outer thumb = &smart_layer (tap latches),
+        /* Function: F1-F24. Left outer thumb = &flt_fn (hold, tap F18),
          * right outer thumb = &ht_fak (hold). */
         fn {
             display-name = "Function";
