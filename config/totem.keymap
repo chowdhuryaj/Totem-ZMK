@@ -1222,7 +1222,7 @@
         base {
             display-name = "Base";
             bindings = <
-                                    &kp F           &kp X          &kp L                       &kp K        &kp F18              &kp SQT             &kp Y            &kp O             &kp U          &kp P
+                                    &kp F           &kp X          &kp L                       &kp K        &kp Q                &kp SQT             &kp Y            &kp O             &kp U          &kp P
                                     &fht_l LCTRL N  &fht_l LALT S  &fht_l LGUI H               &kp T        &kp M                &kp G               &kp C            &fht_r RGUI A     &fht_r RALT E  &fht_r RCTRL I
             &fht_l LA(LG(LCTRL)) B  &fht_l LSHFT Z  &kp V          &kp J                       &kp D        &kp N1               &kp SEMI            &kp W            &kp COMMA         &kp DOT        &fht_r RSHFT FSLH  &fht_r RA(RG(RCTRL)) Q
                                                                    &flt_fn L_FUNC F18          &lt L_NAV R  &ht_sdel L_NUMBER 0  &ht_rep L_NUMBER 0  &lt L_NAV SPACE  &ht_fak L_FUNC 0
