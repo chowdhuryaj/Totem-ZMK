@@ -1174,10 +1174,17 @@
                 <&macro_param_1to1 &macro_param_1to2 &fas_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>;
         };
 
-        /* Neru laptop chords (Neru matches modifiers exactly).
+        /* Neru Mouse-layer chords (Neru matches modifiers exactly): the
+         * laptop chord plus the missing one of Alt/Shift, hints =
+         * Cmd+Opt+Shift+Space, menu = Ctrl+Opt+Shift+Space (Neru mode
+         * neru_mouse). Neru binds them to the laptop actions and, when the
+         * mode ends (click, Return, Escape), runs ~/.local/bin/totem-layer
+         * mouse: Flask SET meta to-layer 0x05 puts the board back on
+         * L_MOUSE. The laptop chords (Cmd+Shift+Space, Ctrl+Opt+Space) never
+         * switch layers. Only L_MOUSE uses these macros.
          * Timing: tap-ms 20 (chord held 20 ms so macOS registers it),
          * wait-ms 15 between steps; neru_m/neru_ms wait 60 ms after the
-         * Ctrl+Opt+Space menu chord before the letter. */
+         * menu chord before the letter. */
         neru_hints: neru_hints {
             compatible = "zmk,behavior-macro";
             label = "NERU_HINTS";
@@ -1185,7 +1192,7 @@
             #binding-cells = <0>;
             wait-ms = <15>;
             tap-ms = <20>;
-            bindings = <&kp LG(LS(SPACE))>, <&to L_BASE>;
+            bindings = <&kp LG(LA(LS(SPACE)))>, <&to L_BASE>;
         };
 
         neru_menu: neru_menu {
@@ -1195,7 +1202,7 @@
             #binding-cells = <0>;
             wait-ms = <15>;
             tap-ms = <20>;
-            bindings = <&kp LC(LA(SPACE))>, <&to L_BASE>;
+            bindings = <&kp LC(LA(LS(SPACE)))>, <&to L_BASE>;
         };
 
         neru_m: neru_m {
@@ -1207,7 +1214,7 @@
             tap-ms = <20>;
             bindings =
                 <&macro_tap>,
-                <&kp LC(LA(SPACE))>,
+                <&kp LC(LA(LS(SPACE)))>,
                 <&macro_wait_time 60>,
                 <&macro_tap>,
                 <&macro_param_1to1 &kp MACRO_PLACEHOLDER>,
@@ -1223,7 +1230,7 @@
             tap-ms = <20>;
             bindings =
                 <&macro_tap>,
-                <&kp LC(LA(SPACE))>,
+                <&kp LC(LA(LS(SPACE)))>,
                 <&macro_wait_time 60>,
                 <&macro_tap>,
                 <&macro_param_1to1 &kp MACRO_PLACEHOLDER>;
@@ -1453,13 +1460,16 @@
         };
 
         /* Mouse layer (&ht_mouse L_MOUSE L_MOUSE on Navigation pos 4; tap toggles,
-         * hold = momentary). Neru keys send the laptop chords: hints =
-         * Cmd+Shift+Space (then to L_BASE to type the label); neru_menu =
-         * Ctrl+Opt+Space; neru_m X = menu chord + letter X, then to L_BASE
+         * hold = momentary). Neru keys send the Mouse-layer chords: hints =
+         * Cmd+Opt+Shift+Space (then to L_BASE to type the label); neru_menu =
+         * Ctrl+Opt+Shift+Space; neru_m X = menu chord + letter X, then to L_BASE
          * (modes that take typing: g grid, r rgrid, b bisect, s scroll, c hints
          * right-click, 2 hints double-click, d hints drag, m monitor select);
          * neru_ms X = same but stays on L_MOUSE (n next monitor, p previous
-         * monitor, x save cursor, z restore cursor). Unused keys are &none,
+         * monitor, x save cursor, z restore cursor). After the Neru mode ends
+         * (click or Escape) Neru puts the board back here over raw HID
+         * (totem-layer; ~50 ms after the click, a key pressed sooner still
+         * types its Base letter). Unused keys are &none,
          * never &trans: on a toggled layer a &trans press would auto-exit the
          * layer and type the base key (CONFIG_ZMK_FLASK_LAYER_AUTOEXIT).
          * Home row left = firmware middle/right/left click (plain &mkp).
