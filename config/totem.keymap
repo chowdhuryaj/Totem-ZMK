@@ -11,22 +11,27 @@
  *               32 33 34     35 36 37
  */
 
-/* ===== MOUSE / SCROLL TUNING (edit these, then rebuild + flash; they are
- * compiled in, nothing here changes live on the board) =====
+/* ===== MOUSE / SCROLL TUNING =====
+ * Speed, ramp and acceleration are LIVE: the Flask app's Mouse tab (channel
+ * 0x2D, zmk-flask-modules flask_mousekeys) changes them on the board and
+ * Save persists them. The values here are the boot defaults until a Save,
+ * plus the compiled max rate (*_SPEED_PCT), which is a rebuild.
  * Units (ZMK 484a054, behavior_input_two_axis.c): &mmv/&msc report
  * "speed" per second at 16 ms ticks (trigger-period-ms default 16). Move speed
  * is HID counts/second (macOS applies its own pointer curve on top; 1800 is
  * roughly a screen width per second). Scroll speed is wheel notches/second
- * (about 1 line each; smooth scrolling is off). Ramp: speed rises from 0 to
- * max over RAMP_MS as (t/RAMP_MS)^EXP; EXP 0 = no ramp, 1 = linear, 2 = quadratic.
- * Percent knobs: 100 = the reference speed noted beside them.
- * These must be defined BEFORE pointing.h (defaults there: 600 move, 10 scroll). */
-#define MOUSE_SPEED_PCT   100   /* 100% = 1800 counts/s */
-#define MOUSE_RAMP_MS     600   /* time to reach full speed */
-#define MOUSE_ACCEL_EXP   1     /* 0 uniform, 1 linear, 2 quadratic */
-#define SCROLL_SPEED_PCT  100   /* 100% = 20 notches/s */
-#define SCROLL_RAMP_MS    150
-#define SCROLL_ACCEL_EXP  0     /* constant speed: a short tap still scrolls >= 1 notch */
+ * (about 1 line each; smooth scrolling is off). &mmv/&msc themselves run at
+ * that max rate with no ramp; the flask_mk_* processors below scale it by a
+ * live percent (app default 100) and ramp it from 0 to full over RAMP_MS as
+ * (t/RAMP_MS)^EXP; EXP 0 = no ramp, 1 = linear, 2 = quadratic, 3 = cubic.
+ * The live percent goes up to 400, so a 400% app setting = 4x the rate here.
+ * SPEED_PCT must be defined BEFORE pointing.h (defaults there: 600 move, 10 scroll). */
+#define MOUSE_SPEED_PCT   100   /* compiled: 100% = 1800 counts/s */
+#define MOUSE_RAMP_MS     600   /* boot default: time to reach full speed */
+#define MOUSE_ACCEL_EXP   1     /* boot default: 0 uniform, 1 linear, 2 quadratic, 3 cubic */
+#define SCROLL_SPEED_PCT  100   /* compiled: 100% = 20 notches/s */
+#define SCROLL_RAMP_MS    150   /* boot default */
+#define SCROLL_ACCEL_EXP  0     /* boot default: constant speed, a short tap still scrolls >= 1 notch */
 /* Stacking speed holds (L_MOUSE thumbs). One hold = x// SPEED_STEP; adding the
  * second hold multiplies by AMP_STEP on top, so the pair = SPEED_STEP * AMP_STEP
  * (3 * 5 = 15). */
@@ -91,15 +96,39 @@
     flavor = "tap-preferred";
 };
 
-/* Mouse move/scroll feel: values come from the tuning block at the top. */
+/* Mouse move/scroll: the behaviors emit their compiled max rate at once
+ * (time-to-max-speed-ms 0 = no ramp, behavior_input_two_axis.c speed()); the
+ * live speed and ramp are the flask_mk_* processors on the listeners' base
+ * chains below. */
 &mmv {
-    time-to-max-speed-ms = <MOUSE_RAMP_MS>;
-    acceleration-exponent = <MOUSE_ACCEL_EXP>;
+    time-to-max-speed-ms = <0>;
 };
 
 &msc {
-    time-to-max-speed-ms = <SCROLL_RAMP_MS>;
-    acceleration-exponent = <SCROLL_ACCEL_EXP>;
+    time-to-max-speed-ms = <0>;
+};
+
+/ {
+    /* Live speed % + ramp (Flask channel 0x2D). gap-ms: a quiet period this
+     * long ends a movement, so the next event restarts the ramp. &mmv reports
+     * every 16 ms tick while held; &msc at 20 notches/s reports a notch every
+     * 3-4 ticks (48-64 ms), hence the longer scroll gap. */
+    flask_mk_pointer: flask_mk_pointer {
+        compatible = "zmk,input-processor-flask-mousekeys";
+        #input-processor-cells = <0>;
+        ramp-ms = <MOUSE_RAMP_MS>;
+        exponent = <MOUSE_ACCEL_EXP>;
+        gap-ms = <60>;
+    };
+
+    flask_mk_scroll: flask_mk_scroll {
+        compatible = "zmk,input-processor-flask-mousekeys";
+        #input-processor-cells = <0>;
+        scroll;
+        ramp-ms = <SCROLL_RAMP_MS>;
+        exponent = <SCROLL_ACCEL_EXP>;
+        gap-ms = <120>;
+    };
 };
 
 /* Stacking speed holds (&mo on L_MOUSE thumbs). Listener overrides are
@@ -115,8 +144,12 @@
  * small steps are not lost (app/src/pointing/input_processor_scaler.c).
  * Leak: `layers` is an OR, so AD (shared by SS and MS) scales both listeners:
  * SS+AD also divides pointer by 5, MS+AD also divides scroll by 5. Only
- * matters when moving the pointer while scrolling-slow or vice versa. */
+ * matters when moving the pointer while scrolling-slow or vice versa.
+ * The base chain (flask_mk_*: live speed + ramp) runs after the overrides,
+ * so the thumb steps multiply on top of the app's speed. */
 &mmv_input_listener {
+    input-processors = <&flask_mk_pointer>;
+
     mouse_slow {
         layers = <L_MOUSE_SLOW>;
         process-next;
@@ -131,6 +164,8 @@
 };
 
 &msc_input_listener {
+    input-processors = <&flask_mk_scroll>;
+
     scroll_slow {
         layers = <L_SCROLL_SLOW>;
         process-next;

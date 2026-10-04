@@ -7,8 +7,11 @@ and RGB: the Totem has no trackballs and no LED strip.
 
 - Flask raw-HID protocol (`zmk-flask-modules`, branch `unify`, pinned by
   SHA in `config/west.yml`), meta family id **6** (5 is the GMK70)
-  (`CONFIG_ZMK_FLASK_FAMILY`). Protocol v19: hold-tap timing 0x2A (v17),
-  adaptive keys 0x2B (v18), auto shift + retro shift 0x2C (v19, ships off).
+  (`CONFIG_ZMK_FLASK_FAMILY`). Protocol v20: hold-tap timing 0x2A (v17),
+  adaptive keys 0x2B (v18), auto shift + retro shift 0x2C (v19, ships off),
+  live mouse-key speed + ramp 0x2D (v20; `flask_mk_pointer` /
+  `flask_mk_scroll` on the `&mmv` / `&msc` listeners, boot defaults from the
+  keymap's tuning block).
   The Imprint builds the same `unify` branch.
 - Transport: `zzeneg/zmk-raw-hid` pinned to `6a37765` (USB reports sent from
   a static buffer, not the stack; fix of 2026-08-23).
