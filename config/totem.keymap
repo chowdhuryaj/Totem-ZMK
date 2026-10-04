@@ -22,11 +22,13 @@
  * roughly a screen width per second). Scroll speed is wheel notches/second
  * (about 1 line each; smooth scrolling is off). &mmv/&msc themselves run at
  * that max rate with no ramp; the flask_mk_* processors below scale it by a
- * live percent (app default 100) and ramp it from 0 to full over RAMP_MS as
- * (t/RAMP_MS)^EXP; EXP 0 = no ramp, 1 = linear, 2 = quadratic, 3 = cubic.
+ * live percent (app default 100) and ramp it from FLOOR to full over RAMP_MS as
+ * FLOOR + (100-FLOOR)% * (t/RAMP_MS)^EXP; EXP 0 = no ramp, 1 = linear, 2 = quadratic, 3 = cubic.
  * The live percent goes up to 400, so a 400% app setting = 4x the rate here.
  * SPEED_PCT must be defined BEFORE pointing.h (defaults there: 600 move, 10 scroll). */
 #define MOUSE_SPEED_PCT   100   /* compiled: 100% = 1800 counts/s */
+#define MOUSE_FLOOR_PCT   40    /* boot default: start speed, % of full speed (0 = ramp from zero) */
+#define SCROLL_FLOOR_PCT  0     /* boot default: scroll start speed, % (0 = unchanged) */
 #define MOUSE_RAMP_MS     600   /* boot default: time to reach full speed */
 #define MOUSE_ACCEL_EXP   1     /* boot default: 0 uniform, 1 linear, 2 quadratic, 3 cubic */
 #define SCROLL_SPEED_PCT  100   /* compiled: 100% = 20 notches/s */
@@ -118,6 +120,7 @@
         #input-processor-cells = <0>;
         ramp-ms = <MOUSE_RAMP_MS>;
         exponent = <MOUSE_ACCEL_EXP>;
+        floor-pct = <MOUSE_FLOOR_PCT>;
         gap-ms = <60>;
     };
 
@@ -127,6 +130,7 @@
         scroll;
         ramp-ms = <SCROLL_RAMP_MS>;
         exponent = <SCROLL_ACCEL_EXP>;
+        floor-pct = <SCROLL_FLOOR_PCT>;
         gap-ms = <120>;
     };
 };
