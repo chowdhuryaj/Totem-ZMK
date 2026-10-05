@@ -1563,7 +1563,7 @@
             bindings = <
                                     &kp X           &kp V          &kp L                       &kp K        &kp Q                &none               &kp Y            &kp O             &kp U          &kp SQT
                                     &fht_l LCTRL N  &fht_l LALT S  &fht_l LGUI H               &kp T        &kp M                &kp P               &kp C            &fht_r RGUI A     &fht_r RALT E  &fht_r RCTRL I
-            &fht_l LSHFT B          &kp F           &kp G          &kp J                       &kp D        &kp Z                &kp SEMI            &kp W            &kp COMMA         &kp DOT        &kp FSLH           &fht_r RSHFT N1
+            &fht_l LSHFT B          &kp F           &kp G          &kp J                       &kp D        &kp Z                &kp SEMI            &kp W            &kp COMMA         &kp DOT        &kp FSLH           &globe_os
                                                                    &flt_fn L_FUNC F18          &flt_ctl L_NAV R  &ht_sdel L_NUMBER 0  &ht_rep L_NUMBER 0  &flt_ctl L_NAV SPACE  &ht_fak L_FUNC 0
             >;
         };
