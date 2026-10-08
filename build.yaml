@@ -96,12 +96,13 @@ include:
   # STUDIO_LOCKING=n reasoning: Studio and the Flask modules run on the
   # central, which is now the dongle. config/totem.keymap and totem.conf apply
   # as for the halves (ZMK tries the candidate name `totem` for totem_dongle).
-  # If the link fails with "region 'RAM' overflowed", add
-  # -DCONFIG_LV_Z_VDB_SIZE=25 here (Prospector README); not set pre-emptively.
+  # LV_Z_VDB_SIZE=25: the first CI build overflowed RAM by 34,570 B (run
+  # 37823848051). Prospector double-buffers 50% of a 240x280x16bpp screen
+  # (134 KB); 25% frees ~67 KB (the fix the Prospector README names).
   - board: xiao_ble//zmk
     shield: totem_dongle prospector_adapter raw_hid_adapter
     snippet: studio-rpc-usb-uart
-    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n
+    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_LV_Z_VDB_SIZE=25
     artifact-name: totem_dongle
   # LEFT half as a peripheral for dongle mode: the normal left image is the
   # central, so only the role flips (ZMK dongle guide). Named "Totem L" like
