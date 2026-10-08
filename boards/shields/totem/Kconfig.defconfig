@@ -37,16 +37,18 @@ config ZMK_SPLIT_ROLE_CENTRAL
 config ZMK_SPLIT_BLE_CENTRAL_PERIPHERALS
     default 2
 
-# Live links: 2 halves + the Endgame (zmk-ble-mouse-host) + the one active
-# host (ZMK never holds two hosts at once), so 4; each extra conn costs RAM
-# next to LVGL. Bonds: ZMK derives its profile count as BT_MAX_PAIRED -
-# PERIPHERALS (app/include/zmk/ble.h), so the mouse bond leaves 6 profile
-# slots in the count; the keymap only selects 0-3, so a profile never evicts
-# a bond. BT_ATT_TX_COUNT needs no line here: ZMK already defaults it to 10
+# Live links: 2 halves + the Endgame (zmk-ble-mouse-host) + hosts. ZMK keeps
+# the old host connected when switching profiles (ble.c zmk_ble_prof_select),
+# and connectable advertising needs a free conn object, so 6 (the left
+# central's old budget) leaves room for two hosts plus an Endgame reconnect.
+# Drop to 4 only if RAM overflows (then switching to a second host needs
+# &bt BT_DISC first). Bonds: ZMK derives its profile count as BT_MAX_PAIRED -
+# PERIPHERALS (app/include/zmk/ble.h); with the Endgame bonded, 5 host
+# bonds remain and the keymap only selects 0-3. BT_ATT_TX_COUNT needs no line here: ZMK already defaults it to 10
 # on a split central (app/src/split/bluetooth/Kconfig), above the mouse
 # module's 8.
 config BT_MAX_CONN
-    default 4
+    default 6
 
 config BT_MAX_PAIRED
     default 8

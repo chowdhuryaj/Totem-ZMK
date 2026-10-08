@@ -27,8 +27,11 @@
 #      lists peripherals in pairing order.
 #   4. The dongle boots with the source keymap, not the Studio-edited one on
 #      the old left central: copy the live keymap over (Studio RPC) first.
-#   5. Assign "Pair Endgame" (dongle-only macro) to a key in Studio, put the
-#      Endgame in pairing mode, press it.
+#   5. Only after BOTH halves are connected: assign "Pair Endgame"
+#      (dongle-only macro) to a key in Studio, put the Endgame in pairing
+#      mode, press it. Earlier, the Prospector module files the Endgame's
+#      address into the empty split-peripheral slot and the second half is
+#      refused until a dongle settings_reset.
 # Going back without the dongle: settings_reset on both halves, flash the
 # standalone totem_left (central) and totem_right images.
 ---

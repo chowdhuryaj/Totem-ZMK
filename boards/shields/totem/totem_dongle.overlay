@@ -41,6 +41,11 @@
     mouse_host_listener {
         compatible = "zmk,input-listener";
         device = <&mouse_host>;
+        /* Calibration knob, first hardware check: the Endgame may send hi-res
+         * wheel values (its smooth scrolling, multiplier 15) that this
+         * dongle reads as whole detents, so scrolling would run ~15x fast.
+         * If so, uncomment (needs #include <input/processors.dtsi>):
+         * input-processors = <&zip_scroll_scaler 1 15>; */
     };
 
     behaviors {
