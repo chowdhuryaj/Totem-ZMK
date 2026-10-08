@@ -12,6 +12,8 @@ manifest:
       url-base: https://github.com/mctechnology17
     - name: zzeneg
       url-base: https://github.com/zzeneg
+    - name: carrefinho
+      url-base: https://github.com/carrefinho
 
   projects:
     - name: zmk
@@ -71,6 +73,21 @@ manifest:
       # stack buffer: good header, garbage tail). Only src/usb_hid.c changed.
       # Bump deliberately.
       revision: 6a37765dfab6197292e7a9f47305dcf87386d56a
+
+    # Prospector display dongle: status screen shield `prospector_adapter` for
+    # the totem_dongle build. `feat/new-status-screens` is the Zephyr 4.1
+    # branch (its `main` is v0.3-only); pinned to a SHA because it is a
+    # work-in-progress branch.
+    - name: prospector-zmk-module
+      remote: carrefinho
+      revision: ed98221f3b52b7066dbb10ba3af8a29150b93a5a
+
+    # Endgame trackball as a BLE HID host on the dongle (central). AJ's fork,
+    # `endgame` branch: adds pair-name-prefix so pairing picks the Endgame by
+    # name. Tracks the branch tip; pin to a SHA for the image you flash.
+    - name: zmk-ble-mouse-host
+      remote: chowdhuryaj
+      revision: endgame
 
   self:
     path: config

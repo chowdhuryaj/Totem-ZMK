@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) 2022 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Prospector dongle: no keys, so the real matrix scan is swapped for ZMK's
+ * mock kscan (dongle guide). Reuses totem.dtsi so the matrix transform and
+ * Studio physical layout stay identical to the halves (the halves send
+ * positions already transformed by their own col-offset).
+ */
+
+#include "totem.dtsi"
+
+/* totem.dtsi's kscan0 has no col-gpios here (the pins belong to the
+ * display), so it must not stay in the tree. */
+/delete-node/ &kscan0;
+
+/ {
+    chosen {
+        zmk,kscan = &mock_kscan;
+    };
+
+    mock_kscan: mock_kscan_0 {
+        compatible = "zmk,kscan-mock";
+        columns = <0>;
+        rows = <0>;
+        events = <0>;
+    };
+
+    /* Endgame trackball over BLE (AJ's zmk-ble-mouse-host fork). Only the
+     * central runs it, so the node lives here and the halves carry stubs. */
+    mouse_host: mouse_host {
+        compatible = "zmk,ble-mouse-host";
+        /* Pairing mode picks the first Endgame by name, not any mouse. */
+        pair-name-prefix = "Endgame";
+    };
+
+    /* Plain forward into the pointing pipeline. No layer-conditional
+     * processors yet (speed layers etc. are AJ's call). */
+    mouse_host_listener {
+        compatible = "zmk,input-listener";
+        device = <&mouse_host>;
+    };
+
+    behaviors {
+        mouse_pair: mouse_pair {
+            compatible = "zmk,behavior-mouse-host-pair";
+            #binding-cells = <0>;
+        };
+
+        mouse_unpair: mouse_unpair {
+            compatible = "zmk,behavior-mouse-host-unpair";
+            #binding-cells = <0>;
+        };
+    };
+};

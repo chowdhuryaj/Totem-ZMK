@@ -15,3 +15,21 @@
         , <&xiao_d 8 GPIO_ACTIVE_HIGH>
         ;
 };
+
+/* totem.keymap is shared by every build and binds &mouse_pair / &mouse_unpair
+ * (Navigation layer). The real behaviors live in totem_dongle.overlay; these
+ * stubs only make the labels resolve (zmk-ble-mouse-host README, "Split
+ * keyboards"). Inert: pressing them does nothing without the dongle. */
+/ {
+    behaviors {
+        mouse_pair: mouse_pair {
+            compatible = "zmk,behavior-none";
+            #binding-cells = <0>;
+        };
+
+        mouse_unpair: mouse_unpair {
+            compatible = "zmk,behavior-none";
+            #binding-cells = <0>;
+        };
+    };
+};

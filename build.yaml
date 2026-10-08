@@ -16,6 +16,19 @@
 #     cmake-args: -DCONFIG_ZMK_USB_LOGGING=y
 #     artifact-name: corne_left_with_logging
 #
+# Dongle mode (Prospector): the dongle is the ZMK central and carries Studio,
+# the Flask raw-HID protocol and the Endgame trackball host; both halves are
+# split peripherals. Flash order:
+#   1. totem_settings_reset on all THREE boards (dongle, left, right), so no
+#      old bond (left was the central) survives.
+#   2. Flash the dongle image, totem_left_peripheral and the plain totem_right
+#      image (a peripheral already, unchanged in dongle mode).
+#   3. Pair the LEFT half first, then the RIGHT: the Prospector battery widget
+#      lists peripherals in pairing order.
+#   4. Put the Endgame in pairing mode, then press &mouse_pair (Navigation
+#      layer, left outer thumb).
+# Going back without the dongle: settings_reset on both halves, flash the
+# standalone totem_left (central) and totem_right images.
 ---
 include:
   # Central half (LEFT): raw_hid_adapter (zzeneg/zmk-raw-hid) carries the
@@ -71,3 +84,26 @@ include:
   - board: xiao_ble//zmk
     shield: settings_reset
     artifact-name: totem_settings_reset
+  # Prospector dongle (central). totem_dongle = mock kscan + the TOTEM matrix
+  # transform / physical layout (so Studio and the keymap see the same 38
+  # positions); prospector_adapter = the display. raw_hid_adapter and the
+  # Studio flags are the same as the left central entry above, with the same
+  # STUDIO_LOCKING=n reasoning: Studio and the Flask modules run on the
+  # central, which is now the dongle. config/totem.keymap and totem.conf apply
+  # as for the halves (ZMK tries the candidate name `totem` for totem_dongle).
+  # If the link fails with "region 'RAM' overflowed", add
+  # -DCONFIG_LV_Z_VDB_SIZE=25 here (Prospector README); not set pre-emptively.
+  - board: xiao_ble//zmk
+    shield: totem_dongle prospector_adapter raw_hid_adapter
+    snippet: studio-rpc-usb-uart
+    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n
+    artifact-name: totem_dongle
+  # LEFT half as a peripheral for dongle mode: the normal left image is the
+  # central, so only the role flips (ZMK dongle guide). Named "Totem L" like
+  # the right one. No raw_hid_adapter / Studio: they live on the dongle (and
+  # RAW_HID depends on the central role). The RIGHT image needs no twin, it is
+  # already a peripheral.
+  - board: xiao_ble//zmk
+    shield: totem_left
+    cmake-args: -DCONFIG_ZMK_SPLIT_ROLE_CENTRAL=n -DCONFIG_ZMK_KEYBOARD_NAME='"Totem L"'
+    artifact-name: totem_left_peripheral
