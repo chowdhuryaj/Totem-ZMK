@@ -1571,18 +1571,14 @@
         /* Navigation: held by the middle thumbs (&flt_ctl L_NAV on 33 / 36). Nav and
          * media rows, plus swapper, num_word, BT, OS toggle, reset and
          * studio_unlock. Position 4 is the mouse layer key (added after the
-         * board dump this layer was copied from). Thumbs 32 / 34 are
-         * &mouse_pair / &mouse_unpair (Endgame trackball on the Prospector
-         * dongle; inert stubs in every other build). They replaced two
-         * &trans, so Function / Number are not reachable from the outer and
-         * inner left thumbs while Navigation is held. */
+         * board dump this layer was copied from). */
         control {
             display-name = "Navigation";
             bindings = <
                            &kp C_VOL_UP  &kp HOME  &kp UP        &kp END    &ht_mouse L_MOUSE L_MOUSE  &swapper            &ak_alt       &kp LS(TAB)     &kp UP      &kp TAB
                            &kp C_VOL_DN  &kp LEFT  &kp DOWN      &kp RIGHT  &leader                    &caps_word          &kp ENTER     &kp LEFT        &kp DOWN    &kp RIGHT
             &kp LG(SPACE)  &kp C_MUTE    &kp C_PP  &kp C_REWIND  &kp C_FF   &sw_layout OS_NEXT         &num_word L_NUMBER  &bt BT_CLR    &studio_unlock  &to L_BASE  &bt BT_SEL 3  &sys_reset
-                                                   &mouse_pair   &trans     &mouse_unpair              &bt BT_SEL 0        &bt BT_SEL 1  &bt BT_SEL 2
+                                                   &trans        &trans     &trans                     &bt BT_SEL 0        &bt BT_SEL 1  &bt BT_SEL 2
             >;
         };
 

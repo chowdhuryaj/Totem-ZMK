@@ -28,7 +28,8 @@
     };
 
     /* Endgame trackball over BLE (AJ's zmk-ble-mouse-host fork). Only the
-     * central runs it, so the node lives here and the halves carry stubs. */
+     * central runs it, so the node and behaviors live here, not in the shared
+     * keymap. */
     mouse_host: mouse_host {
         compatible = "zmk,ble-mouse-host";
         /* Pairing mode picks the first Endgame by name, not any mouse. */
@@ -51,6 +52,27 @@
         mouse_unpair: mouse_unpair {
             compatible = "zmk,behavior-mouse-host-unpair";
             #binding-cells = <0>;
+        };
+    };
+
+    /* The module's behaviors carry no Studio metadata at the pinned ZMK (same
+     * gap as &mmv/&msc), so macros make them assignable from Studio /
+     * Totem-Flask. Not bound in totem.keymap: every thumb on Navigation is
+     * load-bearing and AJ's live keymap lives in Studio anyway. Pair forgets
+     * the old bond first, so Unpair is only for "stop reconnecting". */
+    macros {
+        endgame_pair: endgame_pair {
+            compatible = "zmk,behavior-macro";
+            display-name = "Pair Endgame";
+            #binding-cells = <0>;
+            bindings = <&mouse_pair>;
+        };
+
+        endgame_unpair: endgame_unpair {
+            compatible = "zmk,behavior-macro";
+            display-name = "Unpair Endgame";
+            #binding-cells = <0>;
+            bindings = <&mouse_unpair>;
         };
     };
 };

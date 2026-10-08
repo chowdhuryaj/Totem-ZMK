@@ -25,8 +25,10 @@
 #      image (a peripheral already, unchanged in dongle mode).
 #   3. Pair the LEFT half first, then the RIGHT: the Prospector battery widget
 #      lists peripherals in pairing order.
-#   4. Put the Endgame in pairing mode, then press &mouse_pair (Navigation
-#      layer, left outer thumb).
+#   4. The dongle boots with the source keymap, not the Studio-edited one on
+#      the old left central: copy the live keymap over (Studio RPC) first.
+#   5. Assign "Pair Endgame" (dongle-only macro) to a key in Studio, put the
+#      Endgame in pairing mode, press it.
 # Going back without the dongle: settings_reset on both halves, flash the
 # standalone totem_left (central) and totem_right images.
 ---
