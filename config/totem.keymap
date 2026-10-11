@@ -648,6 +648,33 @@
             bindings = <&kp>, <&kp>;
         };
 
+        /* Modifier hold + ADAPTIVE tap: &fhta_r <mods> <set> (set = the
+         * &fak index 0-15, passed through as param2). Same positional rules
+         * and per-key-position timing as fht_l / fht_r / fht. Not
+         * retro-shift shaped (tap is &fak, not &kp), so autoshift skips it. */
+        fhta_l: fhta_l {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap L / Adaptive";
+            bindings = <&kp>, <&fak>;
+            hold-trigger-key-positions = <FHT_TRIG_L>;
+        };
+
+        fhta_r: fhta_r {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap R / Adaptive";
+            bindings = <&kp>, <&fak>;
+            hold-trigger-key-positions = <FHT_TRIG_R>;
+        };
+
+        fhta: fhta {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap / Adaptive";
+            bindings = <&kp>, <&fak>;
+        };
+
         /* Every hold-tap the keymap binds runs on the flask engine: two
          * hold-tap engines side by side lose keys (a core hold-tap replays
          * past the flask listener). These replace the bound core &lt / &mt /
