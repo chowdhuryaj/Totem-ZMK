@@ -55,11 +55,11 @@ manifest:
 
     - name: zmk-flask-modules
       remote: chowdhuryaj
-      # Branch `unify` (totem line + autoshift + mousekeys, proto v22: tap dance holds), shared
+      # Branch `unify` (totem line + autoshift + mousekeys, proto v23: tap dance holds, release window, eager), shared
       # with the Imprint. Pinned by SHA so a branch push never changes this
       # image; bump deliberately, together with Cyboard-ZMK (still on
       # 28b8b8b / v19).
-      revision: 87c26b494512eddf5e1d96de40b2ed6515ce0a38
+      revision: facb08836f0f4e1e17b625df99982d2c2836a33a
 
     - name: zmk-switch-layout
       remote: mctechnology17
