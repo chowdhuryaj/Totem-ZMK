@@ -15,8 +15,10 @@ and RGB: the Totem has no trackballs and no LED strip.
   The Imprint builds the same `unify` branch.
 - Transport: `zzeneg/zmk-raw-hid` pinned to `6a37765` (USB reports sent from
   a static buffer, not the stack; fix of 2026-08-23).
-- Not used: `zmk-smart-sleep` (no-op without `CONFIG_ZMK_SLEEP`, which is off,
-  and it powers the half off 15 s after a disconnect even on USB) and
+- Deep sleep: `CONFIG_ZMK_SLEEP` defaults on for the halves only (shield
+  `Kconfig.defconfig`, 15 min idle), never on the dongle.
+- Not used: `zmk-smart-sleep` (it powers the half off 15 s after a
+  disconnect even on USB) and
   `zmk-patch-batterylevel` (its divider driver never drives the XIAO's
   `power-gpios` enable pin, so it would read the battery as ~0).
 - ZMK Studio over USB (left half), locking off (see `build.yaml`).
