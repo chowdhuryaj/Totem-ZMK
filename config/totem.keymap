@@ -523,7 +523,7 @@
          * td_defaults below; editable from the app (slot 15) after that. No
          * binding cell, so it can sit on a hold-tap's tap side. */
         sdel_td: sdel_td {
-            compatible = "zmk,behavior-flask-tapdance";
+            compatible = "zmk,behavior-flask-tapdance-slot";
             #binding-cells = <0>;
             display-name = "Super Delete";
             slot = <15>;
