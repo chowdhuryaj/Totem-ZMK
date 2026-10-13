@@ -59,7 +59,7 @@ manifest:
       # with the Imprint. Pinned by SHA so a branch push never changes this
       # image; bump deliberately, together with Cyboard-ZMK (still on
       # 28b8b8b / v19).
-      revision: bd10fd590be2f5f0c1c9c38957d80a184519f969
+      revision: e3f19515ac7f3d8886f4ef5f17066b254e7d0371
 
     - name: zmk-switch-layout
       remote: mctechnology17
