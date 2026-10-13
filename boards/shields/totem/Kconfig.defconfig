@@ -17,6 +17,14 @@ if SHIELD_TOTEM_LEFT || SHIELD_TOTEM_RIGHT
 config ZMK_SPLIT
     default y
 
+# Deep sleep after ZMK_IDLE_SLEEP_TIMEOUT (default 15 min idle): the halves
+# run on battery and otherwise stay connected all night. A key press wakes
+# the half (kscan0 is a wakeup-source) and it reconnects to the dongle in
+# ~1-2 s; that first key can be lost. Never on the dongle: it has no keys
+# to wake it.
+config ZMK_SLEEP
+    default y
+
 endif
 
 # Prospector dongle (Seeed XIAO nRF52840, zmkfirmware dongle guide,
