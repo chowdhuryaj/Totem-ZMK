@@ -971,6 +971,15 @@
             bindings = <&fmt_nav LC(RIGHT) RIGHT>, <&fmt_nav LA(RIGHT) RIGHT>;
         };
 
+        /* Any shortcut, one chord per OS: &osk <mac chord> <pc chord>
+         * (zmk-flask-modules). Studio-assignable; the Flask app's
+         * "OS shortcuts" section fills both params from its preset list. */
+        osk: osk {
+            compatible = "zmk,behavior-flask-os-key";
+            display-name = "OS Shortcut";
+            #binding-cells = <2>;
+        };
+
         /* MacBook bottom-left key: Globe/Fn on mac, Ctrl+Alt+Win held on PC.
          * Not Studio-assignable itself; the app assigns &globe_os below. */
         slk_globe: slk_globe {
