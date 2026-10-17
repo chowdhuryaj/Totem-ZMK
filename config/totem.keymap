@@ -83,7 +83,7 @@
 #define FHT_TRIG_R KEYS_L 31 35 36 37
 
 /* Navigation-layer nav keys the app switcher ignores (see swapper below). */
-#define SWAP_NAV 7 8 9 16 17 18 19
+#define SWAP_NAV 6 7 8 9 16 17 18 19
 
 /* OS mode = switch-layout index (mctechnology17/zmk-switch-layout), stored in
  * settings so it survives reboot/reflash. slk_* behaviors below pick the
@@ -442,8 +442,9 @@
          * &swapper is a switch-layout-key wrapping two tri-states — ⌘ on mac,
          * Alt on PC — following the same persisted &sw_layout OS_NEXT toggle
          * as every slk_* key (ZMK has no host-OS auto-detection; zmk#2553).
-         * Ignored positions (SWAP_NAV) = Navigation's ⇧Tab/Up/Tab (7 8 9) and
-         * Enter/arrows (16-19) so the app grid can be navigated mid-swap.
+         * Ignored positions (SWAP_NAV) = Navigation's top-right row (6-9:
+         * ⇧Tab/Up/Tab, wherever the live keymap put them; AJ's has ⇧Tab at 6)
+         * and Enter/arrows (16-19) so the app grid can be navigated mid-swap.
          * ⇧Tab (7) doubles as the reverse key: shift applies to whichever
          * mod the swapper holds, so one reverse key serves both OSes. (The
          * Imprint's separate reverse key on its number row has no room on
