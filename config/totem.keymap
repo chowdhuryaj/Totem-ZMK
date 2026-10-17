@@ -471,6 +471,20 @@
             bindings = <&swapper_win>, <&swapper_mac>;
         };
 
+        /* &swapper itself has no parameter metadata (switch-layout-key), so
+         * Studio and the Flask app cannot assign it. A mod-morph has
+         * metadata (no params), so this pass-through wrapper is the
+         * assignable App Switcher: both branches run &swapper, Shift rides
+         * through (the reverse direction). */
+        swap_any: swap_any {
+            compatible = "zmk,behavior-mod-morph";
+            display-name = "App Switcher";
+            #binding-cells = <0>;
+            bindings = <&swapper>, <&swapper>;
+            mods = <(MOD_LSFT|MOD_RSFT)>;
+            keep-mods = <(MOD_LSFT|MOD_RSFT)>;
+        };
+
         as_ht: as_ht {
             compatible = "zmk,behavior-hold-tap";
             label = "AS_HT";
