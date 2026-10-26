@@ -839,7 +839,7 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_TOTEM_PHONE_REMOTE_PHONE_ADV) ||
 #define ADV_SLOW_MIN 0x0290 /* 0.625 ms units */
 #define ADV_SLOW_MAX 0x02B0
 
-static uint32_t g_adv_fast_end = ADV_FAST_MS; /* uptime; written on BT RX */
+static int64_t g_adv_fast_end = ADV_FAST_MS; /* uptime; written on BT RX */
 static bool g_adv_fast;     /* the speed we started at; work queue */
 static atomic_t g_adv_ours; /* set: we are advertising, not ZMK */
 static char g_adv_name[ADV_NAME_MAX];
@@ -892,7 +892,7 @@ static void adv_fn(struct k_work *work)
 	const char *name = bt_get_name();
 	size_t full = strlen(name);
 	size_t len = MIN(full, sizeof(g_adv_name));
-	int32_t fast_left = (int32_t)(g_adv_fast_end - k_uptime_get_32());
+	int64_t fast_left = g_adv_fast_end - k_uptime_get();
 	bool fast = fast_left > 0;
 
 	if (!phone_waiting()) {
@@ -1263,7 +1263,7 @@ static void on_disconnected(struct bt_conn *conn, uint8_t reason)
 	/* A drop pending for this phone must not land on the next one. */
 	k_work_cancel_delayable(&g_drop_work);
 	remote_hid_release_all(true);
-	g_adv_fast_end = k_uptime_get_32() + ADV_FAST_MS;
+	g_adv_fast_end = k_uptime_get() + ADV_FAST_MS;
 	LOG_INF("remote: phone disconnected (0x%02x)", reason);
 	bt_conn_foreach(BT_CONN_TYPE_LE, next_phone_cb, conn);
 	remote_status_kick();
