@@ -26,6 +26,8 @@ and RGB: the Totem has no trackballs and no LED strip.
   dance (`&ftd`), custom shift keys.
 - Live hold-tap timing (`&fht_l` / `&fht_r` / `&fht`, channel 0x2A): see
   below.
+- Phone remote on the Prospector dongle (a phone types and points through
+  the dongle, ported from NEXUS): see [docs/phone-remote.md](docs/phone-remote.md).
 - OS switching (`&sw_layout` + `slk_*` keys), app switcher (`&swapper`),
   `&num_word`, adaptive keys (`ak_rti`, `ak_alt`), smart mod/layer.
 

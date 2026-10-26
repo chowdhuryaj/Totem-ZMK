@@ -841,10 +841,41 @@ static void serve(struct bt_conn *conn)
 	LOG_INF("remote: phone connected");
 }
 
-static void on_connected(struct bt_conn *conn, uint8_t err)
+/*
+ * Make @p conn the pairing candidate. Its own auth callbacks (k_auth) carry
+ * passkey_display only, so Zephyr presents DisplayOnly IO on this link: the
+ * dongle shows the code and the phone types it, iPhone and Android alike.
+ * ZMK's global callbacks at our pin carry no passkey_display/entry/confirm
+ * (ZMK_BLE_PASSKEY_ENTRY is off), i.e. NoInputNoOutput, which can never
+ * reach the LESC+MITM level this service needs.
+ */
+static void take_candidate(struct bt_conn *conn)
 {
 	bool candidate = false;
 
+	K_SPINLOCK(&g_lock) {
+		if (!g_pair_conn) {
+			g_pair_conn = bt_conn_ref(conn);
+			candidate = true;
+		}
+	}
+	if (!candidate) {
+		return;
+	}
+
+	int err = bt_conn_auth_cb_overlay(conn, &k_auth);
+
+	if (err) {
+		/* SMP already latched ZMK's callbacks on this link (it tried to
+		 * pair before the window): no passkey possible here. Drop it;
+		 * the phone reconnects inside the window and gets the overlay. */
+		LOG_WRN("remote: auth overlay refused (%d), dropping link", err);
+		bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+	}
+}
+
+static void on_connected(struct bt_conn *conn, uint8_t err)
+{
 	if (!is_peripheral_link(conn)) {
 		return;
 	}
@@ -869,17 +900,32 @@ static void on_connected(struct bt_conn *conn, uint8_t err)
 	 * phone that was asked for - a known one too, which may have lost its
 	 * pairing and be about to ask again. A host that connects in the same
 	 * minute gets the phone's treatment - documented, and the window is
-	 * short. */
-	K_SPINLOCK(&g_lock) {
-		if (!g_pair_conn) {
-			g_pair_conn = bt_conn_ref(conn);
-			candidate = true;
-		}
+	 * short. Before anything can start SMP on this link. */
+	take_candidate(conn);
+}
+
+/*
+ * A phone already connected when the window opens (Android: the app
+ * connected, its first read failed, and it is waiting to bond) would
+ * otherwise pair through ZMK's callbacks and never see a passkey. Any
+ * peripheral link that is neither a paired phone nor a bonded host is
+ * taken as the candidate.
+ */
+static void sweep_cb(struct bt_conn *conn, void *data)
+{
+	ARG_UNUSED(data);
+
+	const bt_addr_le_t *dst = bt_conn_get_dst(conn);
+	struct bt_conn_info info;
+
+	if (bt_conn_get_info(conn, &info) || info.role != BT_CONN_ROLE_PERIPHERAL ||
+	    info.state != BT_CONN_STATE_CONNECTED) {
+		return;
 	}
-	if (candidate) {
-		/* Before anything can start SMP on this link. */
-		bt_conn_auth_cb_overlay(conn, &k_auth);
+	if (known_phone(dst) || zmk_ble_profile_index(dst) >= 0) {
+		return;
 	}
+	take_candidate(conn);
 }
 
 static void on_disconnected(struct bt_conn *conn, uint8_t reason)
@@ -1063,6 +1109,7 @@ static void pair_open_fn(struct k_work *work)
 	}
 
 	k_work_reschedule(&g_pair_close, PAIR_WINDOW);
+	bt_conn_foreach(BT_CONN_TYPE_LE, sweep_cb, NULL);
 	g_wait_variant = 0;
 	remote_screen_show(REMOTE_VIEW_WAIT, 0);
 	remote_status_kick();
