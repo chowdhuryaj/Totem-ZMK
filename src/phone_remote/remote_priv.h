@@ -28,7 +28,8 @@
 /** Queue a Key packet behind any pending text. @return 0 or REMOTE_ERR_FULL. */
 int remote_hid_key(const struct remote_key *key);
 
-/** Queue validated text. @return 0 or REMOTE_ERR_FULL. */
+/** Queue validated text; leaves room for Key writes. @return 0 or
+ * REMOTE_ERR_FULL. */
 int remote_hid_text(const uint8_t *buf, uint16_t len);
 
 /** Merge a Mouse packet into the pending report. */
@@ -39,6 +40,9 @@ void remote_hid_keepalive(void);
 
 /** Let go of everything held; @p drop_text also empties the queue. */
 void remote_hid_release_all(bool drop_text);
+
+/** Let go of the phone's held keys and buttons now. System work queue only. */
+void remote_hid_release_holds(void);
 
 /** Typing delay for this session, clamped to the protocol's range. */
 void remote_hid_set_delay(uint8_t ms);

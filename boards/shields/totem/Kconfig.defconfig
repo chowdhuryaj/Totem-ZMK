@@ -64,6 +64,14 @@ config BT_MAX_CONN
 config BT_MAX_PAIRED
     default 10
 
+# The phone's 15 ms link (remote.c PHONE_CONN_PARAM) is only requested when
+# this timer fires; Zephyr's 5 s left the phone on its own 30 ms for the
+# first 5 s of every reconnect. Below the spec's "should not within 5 s";
+# BLE hosts get ZMK's preferred parameters 4 s sooner too. Peripheral links
+# only: the halves and the Endgame are central links.
+config BT_CONN_PARAM_UPDATE_TIMEOUT
+    default 1000
+
 # Phone remote (repo-root Kconfig, docs/phone-remote.md): dongle only.
 config TOTEM_PHONE_REMOTE
     default y

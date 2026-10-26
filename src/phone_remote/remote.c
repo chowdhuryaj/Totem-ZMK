@@ -175,8 +175,10 @@ static int g_cfg_prev_profile;  /* work queue only */
 /* Profile to return to while a window holds ZMK on another one, persisted:
  * ZMK saves its active profile (60 s debounce), so a reboot inside a window
  * would otherwise come up on the phone's or the open pairing profile and
- * stay there. -1: none. Work queue only. */
+ * stay there. Kept until ZMK has saved the profile after it (home_clear_fn).
+ * -1: none. Work queue only. */
 static int8_t g_home = -1;
+static bool g_served_in_window; /* g_phone was served after the window opened */
 static uint8_t g_last_status[STATUS_LEN];
 static atomic_t g_output; /* REMOTE_OUTPUT_* asked for, until applied */
 
@@ -377,8 +379,14 @@ static void output_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
-	zmk_endpoint_set_preferred_transport(
-		(enum zmk_transport)atomic_get(&g_output));
+	enum zmk_transport t = (enum zmk_transport)atomic_get(&g_output);
+
+	/* Let go first, while the old endpoint still gets the reports: ZMK's
+	 * switch clears the mouse report without sending it there. */
+	if (t != zmk_endpoint_get_preferred_transport()) {
+		remote_hid_release_holds();
+	}
+	zmk_endpoint_set_preferred_transport(t);
 	/* A preference ZMK cannot act on yet - BLE with no host connected -
 	 * changes no endpoint and so raises nothing; tell the phone anyway. */
 	remote_status_kick();
@@ -539,7 +547,9 @@ static void app_arrived(struct bt_conn *conn)
 		if (g_pair_conn == conn) {
 			g_pair_conn = NULL;
 			mine = unref = true;
-		} else if (!g_pair_conn) {
+		} else if (!g_pair_conn && g_served_in_window) {
+			/* Not a phone served before the window: its app
+			 * reloading must not close a window meant for another. */
 			mine = true;
 		}
 	}
@@ -568,6 +578,10 @@ static ssize_t status_ccc_write(struct bt_conn *conn,
 	if (conn == g_phone) {
 		if (value) {
 			k_work_cancel_delayable(&g_drop_work);
+			/* A fresh subscriber gets a notify even if nothing
+			 * changed since the last one (an app reload). */
+			memset(g_last_status, 0xFF, sizeof(g_last_status));
+			remote_status_kick();
 			app_arrived(conn);
 		} else {
 			k_work_reschedule(&g_drop_work, APP_GONE_GRACE);
@@ -814,6 +828,19 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_TOTEM_PHONE_REMOTE_PHONE_ADV) ||
 #define ADV_SETTLE   K_MSEC(200)
 #define ADV_NAME_MAX 26 /* 31 bytes of advertising data, less flags and header */
 
+/*
+ * Fast (100-150 ms) for ADV_FAST_MS after boot or the phone leaving, then
+ * slow (410-430 ms, around Apple's 417.5 ms): every advertising event takes
+ * radio time from the halves' 7.5 ms links and the Endgame, and a phone
+ * left in a pocket would cost that forever. The app finds Totem up to
+ * ~0.5 s later after that.
+ */
+#define ADV_FAST_MS  30000
+#define ADV_SLOW_MIN 0x0290 /* 0.625 ms units */
+#define ADV_SLOW_MAX 0x02B0
+
+static uint32_t g_adv_fast_end = ADV_FAST_MS; /* uptime; written on BT RX */
+static bool g_adv_fast;     /* the speed we started at; work queue */
 static atomic_t g_adv_ours; /* set: we are advertising, not ZMK */
 static char g_adv_name[ADV_NAME_MAX];
 static struct bt_data g_adv_ad[] = {
@@ -855,6 +882,9 @@ static void adv_hand_back(const char *name)
 	}
 }
 
+static void adv_fn(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(g_adv_work, adv_fn);
+
 static void adv_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
@@ -862,12 +892,26 @@ static void adv_fn(struct k_work *work)
 	const char *name = bt_get_name();
 	size_t full = strlen(name);
 	size_t len = MIN(full, sizeof(g_adv_name));
+	int32_t fast_left = (int32_t)(g_adv_fast_end - k_uptime_get_32());
+	bool fast = fast_left > 0;
 
 	if (!phone_waiting()) {
 		if (adv_release()) {
 			adv_hand_back(name);
 		}
 		return;
+	}
+	if (atomic_get(&g_adv_ours)) {
+		if (fast) {
+			/* Re-armed every run: an adv_check() in between took
+			 * the slot this timer was in. */
+			k_work_schedule(&g_adv_work, K_MSEC(fast_left));
+			return;
+		}
+		if (!g_adv_fast || !adv_release()) {
+			return; /* already slow, or a connection just took it */
+		}
+		/* Fast time is up: stopped; start again, slow. */
 	}
 	/* Claimed before starting, not after: a connection in between clears
 	 * the flag, and must not have it set again behind its back. */
@@ -881,12 +925,19 @@ static void adv_fn(struct k_work *work)
 	g_adv_ad[1].data_len = (uint8_t)len;
 
 	int err = bt_le_adv_start(
-		BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, BT_GAP_ADV_FAST_INT_MIN_2,
-				BT_GAP_ADV_FAST_INT_MAX_2, NULL),
+		fast ? BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, BT_GAP_ADV_FAST_INT_MIN_2,
+				       BT_GAP_ADV_FAST_INT_MAX_2, NULL)
+		     : BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, ADV_SLOW_MIN,
+				       ADV_SLOW_MAX, NULL),
 		g_adv_ad, ARRAY_SIZE(g_adv_ad), k_adv_sd, ARRAY_SIZE(k_adv_sd));
 
 	if (err == 0) {
-		LOG_INF("remote: advertising for a paired phone");
+		LOG_INF("remote: advertising for a paired phone (%s)",
+			fast ? "fast" : "slow");
+		g_adv_fast = fast;
+		if (fast) {
+			k_work_schedule(&g_adv_work, K_MSEC(fast_left));
+		}
 		return;
 	}
 	atomic_set(&g_adv_ours, 0);
@@ -895,7 +946,6 @@ static void adv_fn(struct k_work *work)
 		LOG_WRN("remote: phone advertising failed (%d)", err);
 	}
 }
-static K_WORK_DELAYABLE_DEFINE(g_adv_work, adv_fn);
 
 static void adv_check(void)
 {
@@ -913,6 +963,10 @@ static bool adv_consumed(void)
 
 /* ---- status -------------------------------------------------------------- */
 
+#define STATUS_GAP_MS 100 /* the protocol's rate limit */
+
+static atomic_t g_status_at; /* k_uptime_get_32() of the last notify */
+
 static void status_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
@@ -926,19 +980,30 @@ static void status_fn(struct k_work *work)
 
 	status_bytes(v);
 	if (memcmp(v, g_last_status, sizeof(v)) != 0) {
-		/* Fails harmlessly when the app has not subscribed. */
-		if (bt_gatt_notify(conn, STATUS_ATTR, v, sizeof(v)) == 0) {
+		int err = bt_gatt_notify(conn, STATUS_ATTR, v, sizeof(v));
+
+		if (err == 0) {
 			memcpy(g_last_status, v, sizeof(v));
+			atomic_set(&g_status_at, (atomic_val_t)k_uptime_get_32());
+		} else if (err != -EINVAL && err != -ENOTCONN && err != -EPERM) {
+			/* Not "unsubscribed", "gone" or "not encrypted": out
+			 * of ATT buffers (HOG reports filled the shared pool),
+			 * which nothing else would retry. The app paces text
+			 * on text_free and would wait on a stale one. */
+			k_work_schedule(&g_status_work, K_MSEC(STATUS_GAP_MS));
 		}
 	}
 	bt_conn_unref(conn);
 }
 
-/* Coalesced: many kicks inside 100 ms are one notification, which is the
- * protocol's rate limit while text is typing. */
+/* At once if the last notify is STATUS_GAP_MS old, else at that mark; kicks
+ * in between coalesce into that one (schedule keeps a pending deadline). */
 void remote_status_kick(void)
 {
-	k_work_schedule(&g_status_work, K_MSEC(100));
+	uint32_t since = k_uptime_get_32() - (uint32_t)atomic_get(&g_status_at);
+
+	k_work_schedule(&g_status_work,
+			since >= STATUS_GAP_MS ? K_NO_WAIT : K_MSEC(STATUS_GAP_MS - since));
 }
 
 /*
@@ -1022,6 +1087,7 @@ static void serve(struct bt_conn *conn)
 		return;
 	}
 
+	g_served_in_window = pair_open();
 	bt_conn_le_param_update(conn, PHONE_CONN_PARAM);
 	/* Flask frames need ATT MTU >= 35 (write_flask). Harmless if the phone
 	 * already exchanged, or one is in flight. */
@@ -1142,6 +1208,27 @@ static void sweep_cb(struct bt_conn *conn, void *data)
 	take_candidate(conn);
 }
 
+/*
+ * Another paired phone still connected (iOS keeps bonded links up) once the
+ * served one leaves: serve it, or every write it makes is refused until it
+ * reconnects. Its app may be closed, so the app-gone drop is armed for it.
+ * L4 as everywhere else; @p data is the link going down.
+ */
+static void next_phone_cb(struct bt_conn *conn, void *data)
+{
+	struct bt_conn_info info;
+
+	if (conn == data || g_phone || bt_conn_get_info(conn, &info) ||
+	    info.role != BT_CONN_ROLE_PERIPHERAL ||
+	    info.state != BT_CONN_STATE_CONNECTED ||
+	    !known_phone(bt_conn_get_dst(conn)) ||
+	    bt_conn_get_security(conn) < BT_SECURITY_L4) {
+		return;
+	}
+	serve(conn);
+	k_work_reschedule(&g_drop_work, APP_GONE_GRACE);
+}
+
 static void on_disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	bool phone = false;
@@ -1176,8 +1263,10 @@ static void on_disconnected(struct bt_conn *conn, uint8_t reason)
 	/* A drop pending for this phone must not land on the next one. */
 	k_work_cancel_delayable(&g_drop_work);
 	remote_hid_release_all(true);
-	remote_status_kick();
+	g_adv_fast_end = k_uptime_get_32() + ADV_FAST_MS;
 	LOG_INF("remote: phone disconnected (0x%02x)", reason);
+	bt_conn_foreach(BT_CONN_TYPE_LE, next_phone_cb, conn);
+	remote_status_kick();
 }
 
 BT_CONN_CB_DEFINE(phone_remote_conn) = {
@@ -1194,6 +1283,26 @@ static void home_save(int home)
 	}
 	g_home = (int8_t)home;
 	settings_save_one("phone_remote/home", &g_home, sizeof(g_home));
+}
+
+/* Cleared only once ZMK has saved the profile it went back to (its
+ * debounce, ble.c), or a reboot in between comes up on the window's
+ * profile with no home to return to. Skipped while a window is open: its
+ * close schedules this again. */
+static void home_clear_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	if (!pair_open() && !cfg_open()) {
+		home_save(-1);
+	}
+}
+static K_WORK_DELAYABLE_DEFINE(g_home_clear, home_clear_fn);
+
+static void home_clear_later(void)
+{
+	k_work_reschedule(&g_home_clear,
+			  K_MSEC(CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE + 1000));
 }
 
 static bool profile_is_phone(int idx)
@@ -1233,7 +1342,7 @@ static void home_fn(struct k_work *work)
 			}
 		}
 	}
-	home_save(-1);
+	home_clear_later();
 	if (target >= 0) {
 		LOG_INF("remote: booted on profile %d, back to %d", active, target);
 		adv_release();
@@ -1444,6 +1553,11 @@ static void pair_open_fn(struct k_work *work)
 
 	g_prev_profile = zmk_ble_active_profile_index();
 	g_pair_profile = free_slot;
+	/* Timer first, as cfg_toggle_fn: prof_select starts ZMK's advertising
+	 * and blocks on HCI, and a phone connecting in that gap must already
+	 * see the window open (on_connected). */
+	k_work_reschedule(&g_pair_close, PAIR_WINDOW);
+	g_served_in_window = false; /* the phone served now came before it */
 	/* The advertiser back to ZMK first, or ZMK's switch cannot start it. */
 	adv_release();
 	if (free_slot != g_prev_profile) {
@@ -1451,7 +1565,6 @@ static void pair_open_fn(struct k_work *work)
 		zmk_ble_prof_select(free_slot);
 	}
 
-	k_work_reschedule(&g_pair_close, PAIR_WINDOW);
 	bt_conn_foreach(BT_CONN_TYPE_LE, sweep_cb, NULL);
 	g_wait_variant = 0;
 	remote_screen_show(REMOTE_VIEW_WAIT, 0);
@@ -1491,7 +1604,7 @@ static void pair_close_fn(struct k_work *work)
 		zmk_ble_prof_select(g_prev_profile);
 	}
 	g_pair_profile = -1;
-	home_save(-1);
+	home_clear_later();
 	g_just_paired = false;
 	g_wait_variant = 0;
 	adv_check();
@@ -1693,7 +1806,7 @@ static void cfg_close_fn(struct k_work *work)
 		zmk_ble_prof_select(g_cfg_prev_profile);
 	}
 	g_cfg_profile = -1;
-	home_save(-1);
+	home_clear_later();
 	adv_check();
 	LOG_INF("remote: config window closed");
 	remote_screen_hide(REMOTE_VIEW_CONFIG);

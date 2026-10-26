@@ -27,6 +27,12 @@ consumer (media) keys. Nothing else:
   is BLE only on the dongle.
 - Flask replies go only to the BLE host that sent the request, never to USB
   (upstream zmk-raw-hid copied every reply to both).
+- On a switch away from USB (`&out`, Control 0x07, USB to BLE fallback), the
+  dongle sends one empty mouse report on the existing mouse report, so a
+  button the phone or the Endgame held is not left down on the workstation
+  (ZMK clears the mouse report but does not send it to the old endpoint).
+  Only while USB is configured and not suspended; no new interface or
+  report.
 
 The halves' images are unchanged (the left central still has USB Studio and
 USB raw HID).
@@ -84,7 +90,8 @@ goes nowhere until the window closes.
 
 ZMK saves its active profile (60 s after a switch). Both windows save the
 profile to come back to (`phone_remote/home`) when they switch away from it
-and clear it when they close. One second after boot, if that is set, or if
+and clear it `ZMK_SETTINGS_SAVE_DEBOUNCE` + 1 s after they close, once ZMK
+has saved the profile they went back to. One second after boot, if that is set, or if
 the active profile is a paired phone's (a reboot inside a window, or
 `&bt BT_SEL` onto the phone's slot), the dongle selects the saved profile,
 else the lowest profile that is not a phone's.
@@ -127,6 +134,10 @@ It is a third zmk-raw-hid transport beside USB and BLE HOG (fork branch
   and RGB channel. Modes and the output editor are app-side and use these
   channels plus Studio. A channel added to zmk-flask-modules stays refused
   until it is added here.
+- zmk-raw-hid sends a reply to the transport of the last request, so with
+  Totem-Flask on the Mac (BLE) and the phone tuning in the same window, a
+  deferred SAVE echo can go to the other one. Close Totem-Flask on the Mac
+  while the phone tunes.
 - Unsolicited Flask sends (none exist in zmk-flask-modules today) reach the
   phone only while it is subscribed and the window is open. A reply raised
   after the window closed (a slow SAVE echo) is dropped.
@@ -188,6 +199,15 @@ length only.
 - The dongle advertises as "Totem" (`CONFIG_ZMK_KEYBOARD_NAME`).
 - Firmware-side only: a bonded host that reconnects inside the pairing
   window is left to ZMK instead of being taken for the phone.
+- Status `text_free` leaves out 24 bytes kept for Key writes: text is
+  refused (`0x81`) when it would eat into them, so a key release still
+  fits behind a full text queue.
+- Status is notified on every subscribe (an app reload gets one even if
+  nothing changed), at once when the last notify is 100 ms old, else at the
+  100 ms mark. A notify that fails for lack of a buffer is retried 100 ms
+  later.
+- Control 0x07 releases the keys and buttons the phone holds before it
+  switches output.
 
 ## Pairing security (changed vs NEXUS)
 
@@ -363,10 +383,31 @@ Use
       is dropped (`unknown device on the phone advertising` in the log).
 
 Known limits (from NEXUS): US layout only;
-a Shift held on the Totem changes the case of typed text; one phone connected
-at a time; `&bt BT_CLR_ALL` forgets phones too. Typed text and keys pass
+a Shift held on the Totem changes the case of typed text; one phone served
+at a time (a second paired phone still connected is served when the first
+leaves, and dropped 2 s later if its app is not subscribed); `&bt BT_CLR_ALL` forgets phones too. Typed text and keys pass
 through ZMK's keycode listeners, so Flask custom shift keys and adaptive keys
 can rewrite them the same way they rewrite Endgame keys.
+
+## Latency
+
+Phone path: GATT write, BT RX thread, one hop to the system work queue
+(ZMK's own), ZMK HID, USB or HOG. The phone link asks for 15 ms, latency 0,
+2 s timeout.
+
+- `BT_CONN_PARAM_UPDATE_TIMEOUT` is 1000 ms on the dongle (Zephyr default
+  5000), so the phone gets its 15 ms link 1 s after a reconnect instead of
+  5 s. Trade: earlier than the spec's "should not within 5 s", and BLE
+  hosts also get ZMK's preferred parameters 4 s sooner.
+- Phone advertising (`CONFIG_TOTEM_PHONE_REMOTE_PHONE_ADV`) runs at
+  100-150 ms for 30 s after boot or after the phone disconnects, then at
+  410-430 ms for as long as the phone stays away. Trade: after those 30 s
+  the app can take up to ~0.5 s longer to find Totem; in return the dongle
+  stops spending radio time every ~125 ms beside the halves' and the
+  Endgame's links.
+- Not changed: typing to a BLE host at 8 ms per report can block the system
+  work queue when HOG's queue is full (needs hardware data), and Key is
+  Write with response (one round trip per key; a protocol change).
 
 ## Test without an app: nRF Connect on an iPhone
 

@@ -23,8 +23,15 @@
 
 #include <dt-bindings/zmk/keys.h>
 #include <zmk/endpoints.h>
+#include <zmk/event_manager.h>
+#include <zmk/events/endpoint_changed.h>
 #include <zmk/events/keycode_state_changed.h>
 #include <zmk/hid.h>
+
+#if IS_ENABLED(CONFIG_ZMK_USB)
+#include <zmk/usb.h>
+#include <zmk/usb_hid.h>
+#endif
 
 #include "remote_priv.h"
 
@@ -36,6 +43,10 @@ LOG_MODULE_DECLARE(phone_remote, CONFIG_ZMK_LOG_LEVEL);
  */
 #define OP_KEY 0x01 /* + action, mods, page, usage lo, usage hi */
 #define KEY_REC 6
+
+/* Text leaves this much room, so a Key write - a held Ctrl let go - still
+ * fits behind a full text queue. */
+#define KEY_ROOM (4 * KEY_REC)
 
 /* ponytail: 12 is more keys than a phone UI can hold at once; a press past
  * it is dropped rather than growing the table. */
@@ -199,7 +210,9 @@ static void step_fn(struct k_work *work)
 	if (g_typed) {
 		key_event(g_typed, false);
 		g_typed = 0;
-		k_work_schedule(&g_step, K_MSEC(g_delay));
+		/* reschedule: an enqueue while this step blocked queued it at
+		 * no wait, which would eat the typing delay. */
+		k_work_reschedule(&g_step, K_MSEC(g_delay));
 		return;
 	}
 
@@ -229,19 +242,19 @@ static void step_fn(struct k_work *work)
 	}
 
 	set_typing(true);
-	k_work_schedule(&g_step,
-			rec[0] == OP_KEY ? do_key(rec) : type_char(rec[0]));
+	k_work_reschedule(&g_step,
+			  rec[0] == OP_KEY ? do_key(rec) : type_char(rec[0]));
 
 	/* text_free moved. The kick is rate limited on the other side. */
 	remote_status_kick();
 }
 
-static int enqueue(const uint8_t *data, uint32_t len)
+static int enqueue(const uint8_t *data, uint32_t len, uint32_t room)
 {
 	int err = 0;
 
 	K_SPINLOCK(&g_qlock) {
-		if (ring_buf_space_get(&g_queue) < len) {
+		if (ring_buf_space_get(&g_queue) < len + room) {
 			err = REMOTE_ERR_FULL;
 		} else {
 			ring_buf_put(&g_queue, data, len);
@@ -285,15 +298,16 @@ int remote_hid_key(const struct remote_key *key)
 
 	remote_note_activity();
 	remote_hid_keepalive();
-	return enqueue(rec, sizeof(rec));
+	return enqueue(rec, sizeof(rec), 0);
 }
 
 int remote_hid_text(const uint8_t *buf, uint16_t len)
 {
 	remote_note_activity();
-	return enqueue(buf, len);
+	return enqueue(buf, len, KEY_ROOM);
 }
 
+/* Room for text: what the app may send, so KEY_ROOM is not counted. */
 uint16_t remote_hid_text_free(void)
 {
 	uint32_t free = 0;
@@ -301,6 +315,7 @@ uint16_t remote_hid_text_free(void)
 	K_SPINLOCK(&g_qlock) {
 		free = ring_buf_space_get(&g_queue);
 	}
+	free = free > KEY_ROOM ? free - KEY_ROOM : 0;
 	return (uint16_t)MIN(free, UINT16_MAX);
 }
 
@@ -416,8 +431,8 @@ void remote_hid_mouse(const struct remote_mouse *m)
 /* ---- safety -------------------------------------------------------------- */
 
 /* Keys and buttons the phone holds - not the typer's, which lets go of its
- * own key one step later whatever happens. */
-static void release_holds(void)
+ * own key one step later whatever happens. System work queue. */
+void remote_hid_release_holds(void)
 {
 	while (g_nheld) {
 		unhold(g_held[g_nheld - 1]);
@@ -438,16 +453,14 @@ static void release_fn(struct k_work *work)
 	ARG_UNUSED(work);
 
 	if (atomic_clear(&g_drop_text)) {
-		K_SPINLOCK(&g_qlock) {
-			ring_buf_reset(&g_queue);
-		}
+		/* The queue was emptied by remote_hid_release_all(). */
 		if (g_typed) {
 			key_event(g_typed, false);
 			g_typed = 0;
 		}
 		remote_status_kick();
 	}
-	release_holds();
+	remote_hid_release_holds();
 }
 
 static void watchdog_fn(struct k_work *work)
@@ -457,7 +470,7 @@ static void watchdog_fn(struct k_work *work)
 	if (g_nheld || g_btn_sent) {
 		LOG_WRN("remote: no traffic for %d ms, releasing",
 			CONFIG_TOTEM_PHONE_REMOTE_HOLD_TIMEOUT_MS);
-		release_holds();
+		remote_hid_release_holds();
 	}
 }
 
@@ -470,7 +483,39 @@ void remote_hid_keepalive(void)
 void remote_hid_release_all(bool drop_text)
 {
 	if (drop_text) {
+		/* Emptied here, not in release_fn: text written after the cancel
+		 * but before a busy work queue ran release_fn must survive. */
+		K_SPINLOCK(&g_qlock) {
+			ring_buf_reset(&g_queue);
+		}
 		atomic_set(&g_drop_text, 1);
 	}
 	k_work_submit(&g_release_work);
 }
+
+#if IS_ENABLED(CONFIG_ZMK_USB)
+/*
+ * ZMK clears the mouse report on an endpoint change but sends only the
+ * keyboard and consumer reports to the old endpoint (endpoints.c
+ * zmk_endpoint_clear_reports), so a button the phone or the Endgame held
+ * stays down on the workstation. Send the cleared report to USB once: the
+ * existing mouse report on the existing HID interface. Not when USB is not
+ * configured, nor suspended (ZMK turns a report there into a remote
+ * wakeup), nor when a button is already down again for the new endpoint.
+ * Runs on the thread that switched, synchronously after the clear.
+ */
+static int usb_mouse_up(const zmk_event_t *eh)
+{
+	const struct zmk_endpoint_changed *ev = as_zmk_endpoint_changed(eh);
+
+	if (ev && ev->endpoint.transport != ZMK_TRANSPORT_USB &&
+	    zmk_usb_is_hid_ready() && zmk_usb_get_status() != USB_DC_SUSPEND &&
+	    zmk_hid_get_mouse_report()->body.buttons == 0) {
+		zmk_usb_hid_send_mouse_report();
+	}
+	return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(phone_remote_usb, usb_mouse_up);
+ZMK_SUBSCRIPTION(phone_remote_usb, zmk_endpoint_changed);
+#endif
