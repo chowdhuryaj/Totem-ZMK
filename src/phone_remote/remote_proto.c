@@ -122,7 +122,54 @@ int remote_mouse_parse(const uint8_t *buf, size_t len, struct remote_mouse *out)
 	return 0;
 }
 
-int remote_flask_check(size_t len, size_t max)
+/*
+ * Flask channels the phone may use (zmk-flask-modules flask_proto.c @
+ * d15993a): configuration only. Everything else is refused - above all
+ * keystate 0x23 (the live pressed-key bitmap), which polled would replay
+ * every keystroke typed on the computer, and the pointing channels.
+ */
+static const uint8_t k_flask_channels[] = {
+	0x11, /* gestures: slot outputs  */
+	0x16, /* custom shift            */
+	0x19, /* leader: slot outputs    */
+	0x24, /* combos                  */
+	0x25, /* macros                  */
+	0x28, /* tap dance               */
+	0x2A, /* hold-tap (global, per-key, positional) */
+	0x2B, /* adaptive keys           */
+	0x2C, /* auto shift              */
+};
+
+int remote_flask_check(const uint8_t *buf, size_t len, size_t max)
 {
-	return (len == 0 || len > max) ? REMOTE_ERR_LEN : 0;
+	if (len < REMOTE_FLASK_MIN || len > max) {
+		return REMOTE_ERR_LEN;
+	}
+
+	uint8_t cmd = buf[0], ch = buf[1], id = buf[2];
+
+	if (cmd != REMOTE_FLASK_SET && cmd != REMOTE_FLASK_GET &&
+	    cmd != REMOTE_FLASK_SAVE) {
+		return REMOTE_ERR_VALUE;
+	}
+	/* Meta: protocol version (0x01) and family (0x03) only. Not 0x02
+	 * active layer (live), 0x04 reset cause, 0x05 jump to a layer. */
+	if (ch == 0x00) {
+		return (cmd == REMOTE_FLASK_GET && (id == 0x01 || id == 0x03))
+			       ? 0
+			       : REMOTE_ERR_VALUE;
+	}
+	/* Live values inside allowed channels: the hold-tap resolution log
+	 * (0x2A/0x54: which keys resolved how, when) and macro playback state
+	 * (0x25/0x06: GET watches, SET plays). */
+	if (cmd != REMOTE_FLASK_SAVE &&
+	    ((ch == 0x2A && id == 0x54) || (ch == 0x25 && id == 0x06))) {
+		return REMOTE_ERR_VALUE;
+	}
+	for (size_t i = 0; i < sizeof(k_flask_channels); i++) {
+		if (k_flask_channels[i] == ch) {
+			return 0;
+		}
+	}
+	return REMOTE_ERR_VALUE;
 }

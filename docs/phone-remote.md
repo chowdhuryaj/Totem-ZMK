@@ -82,18 +82,51 @@ switches ZMK to the phone's profile and back when it closes, as the pairing
 window does. Over USB that changes nothing; over BLE, the Totem's typing
 goes nowhere until the window closes.
 
+ZMK saves its active profile (60 s after a switch). Both windows save the
+profile to come back to (`phone_remote/home`) when they switch away from it
+and clear it when they close. One second after boot, if that is set, or if
+the active profile is a paired phone's (a reboot inside a window, or
+`&bt BT_SEL` onto the phone's slot), the dongle selects the saved profile,
+else the lowest profile that is not a phone's.
+
 ### Flask tunnel (characteristic 0x0007)
 
 Write (with response) + Notify, LESC + AUTHEN like the rest of the service.
 It is a third zmk-raw-hid transport beside USB and BLE HOG (fork branch
 `transport-scoped`, `RAW_HID_TRANSPORT_EXT`):
 
-- A write is one Flask frame: 1 to `CONFIG_RAW_HID_REPORT_SIZE` (32) bytes,
-  the same bytes a raw-HID output report carries. Shorter frames are
-  zero-padded by the firmware. Errors: `0x0D` empty or longer than 32,
-  `0x80` phone input off, `0x82` config window closed or another link.
+- A write is one Flask frame: 5 to `CONFIG_RAW_HID_REPORT_SIZE` (32) bytes,
+  `[cmd, channel, value_id, payload...]`, the same bytes a raw-HID output
+  report carries. Frames under 32 bytes are zero-padded by the firmware.
+  Errors: `0x0D` shorter than 5 (flask_proto would drop it with no reply)
+  or longer than 32, `0x13` command/channel/value not on the allowlist
+  below, `0x80` phone input off, `0x82` config window closed or another
+  link.
 - The reply is one 32-byte notification on the same characteristic, to this
   phone only. Subscribe before writing. Replies never go to USB or BLE HOG.
+- Allowlist (`remote_proto.c`, zmk-flask-modules `flask_proto.c` @
+  d15993a): configuration only. Commands SET `0x07`, GET `0x08`, SAVE
+  `0x09` on these channels:
+
+  | Channel | Module |
+  | --- | --- |
+  | `0x11` | gestures (slot outputs) |
+  | `0x16` | custom shift |
+  | `0x19` | leader (slot outputs) |
+  | `0x24` | combos |
+  | `0x25` | macros, except value `0x06` (playback state; SET plays) |
+  | `0x28` | tap dance |
+  | `0x2A` | hold-tap (global, per-key, positional), except value `0x54` (resolution log) |
+  | `0x2B` | adaptive keys |
+  | `0x2C` | auto shift |
+
+  Meta channel `0x00`: GET `0x01` (protocol version) and `0x03` (family)
+  only. Everything else is refused, in particular keystate `0x23` (the live
+  pressed-key bitmap: polled, it replays everything typed on the computer),
+  meta `0x02` (live layer) and `0x05` (jump to a layer), and every pointing
+  and RGB channel. Modes and the output editor are app-side and use these
+  channels plus Studio. A channel added to zmk-flask-modules stays refused
+  until it is added here.
 - Unsolicited Flask sends (none exist in zmk-flask-modules today) reach the
   phone only while it is subscribed and the window is open. A reply raised
   after the window closed (a slow SAVE echo) is dropped.
@@ -202,6 +235,14 @@ characteristic inside the window stays subscribed after it closes; Studio
 replies only go to the active profile's host, which is the phone's only
 while the window is open. Close the window (press again) when done.
 
+Also accepted, inside the config window: Studio and the Flask combos, tap
+dance and macro channels can put any behavior on an everyday key. That
+includes Phone Config Unlock, Phone Pair, Forget Phones, `&bt BT_CLR`,
+`&sys_reset` and `&bootloader`. A key bound to `&bootloader` and pressed at
+the workstation puts the dongle into its UF2 bootloader, and the workstation
+then sees a USB mass-storage drive instead of a keyboard. This follows from
+letting the phone edit the keymap at all; Studio RPC is not filtered.
+
 Accepted: any app on a paired phone can use the phone's bond (the OS owns
 it), so a phone app or a web page granted the device in the browser's
 chooser can type to the computer while phone input is on; switch it off
@@ -300,6 +341,10 @@ Config window
       Flask write fails `0x82` (`0x80` when input is off); Studio read fails
       (Insufficient Authorization); bit4 clear; the previous BLE profile is
       active again.
+- [ ] Inside: keystate GET (`08 23 01 00 00`) fails `0x13`; a 4-byte write
+      fails `0x0D`.
+- [ ] Reboot (unplug) with the window open: after boot the previous host
+      profile is active, not the phone's; bit4 clear.
 - [ ] MTU: nRF Connect with MTU left at 23, write 32 bytes to `0x0007`:
       refused, no crash; after requesting MTU 65 it works.
 

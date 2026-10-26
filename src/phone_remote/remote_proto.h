@@ -79,9 +79,21 @@ enum remote_ctrl_op {
 int remote_key_parse(const uint8_t *buf, size_t len, struct remote_key *out);
 int remote_mouse_parse(const uint8_t *buf, size_t len, struct remote_mouse *out);
 
-/** A Flask tunnel frame: 1..@p max bytes (one raw-HID report, no
- * fragmentation). @return 0 or REMOTE_ERR_LEN. */
-int remote_flask_check(size_t len, size_t max);
+/* Flask tunnel frame: [cmd, channel, value_id, payload...] (zmk-flask-modules
+ * flask_proto.c). The phone may only touch configuration, never live input. */
+#define REMOTE_FLASK_MIN 5 /* flask_proto drops shorter frames with no reply */
+
+#define REMOTE_FLASK_SET  0x07
+#define REMOTE_FLASK_GET  0x08
+#define REMOTE_FLASK_SAVE 0x09
+
+/**
+ * A Flask tunnel frame the phone may send: REMOTE_FLASK_MIN..@p max bytes
+ * (one raw-HID report, no fragmentation), and a command/channel/value on the
+ * allowlist in remote_proto.c (docs/phone-remote.md).
+ * @return 0, REMOTE_ERR_LEN or REMOTE_ERR_VALUE.
+ */
+int remote_flask_check(const uint8_t *buf, size_t len, size_t max);
 
 /** @return 0 if every byte is one the dongle can type, else REMOTE_ERR_*. */
 int remote_text_check(const uint8_t *buf, size_t len);

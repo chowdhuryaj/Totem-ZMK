@@ -86,7 +86,7 @@ manifest:
       # (docs/phone-remote.md) be a third transport. This module IS the Flask
       # transport. Pinned; bump deliberately.
       remote: chowdhuryaj
-      revision: eb7f812f062bfb828363b545fa52c77012eca8cc
+      revision: da7c14752b6d2f8316b6d440ae3747971653c1c2
 
     # Prospector display dongle: status screen shield `prospector_adapter` for
     # the totem_dongle build. `feat/new-status-screens` is the Zephyr 4.1

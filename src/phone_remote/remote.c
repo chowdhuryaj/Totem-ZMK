@@ -172,6 +172,11 @@ static bt_addr_le_t g_reject;   /* paired below L4: unpair it */
 static int g_prev_profile;      /* work queue only */
 static int g_cfg_profile = -1;  /* work queue only: the phone's, while open */
 static int g_cfg_prev_profile;  /* work queue only */
+/* Profile to return to while a window holds ZMK on another one, persisted:
+ * ZMK saves its active profile (60 s debounce), so a reboot inside a window
+ * would otherwise come up on the phone's or the open pairing profile and
+ * stay there. -1: none. Work queue only. */
+static int8_t g_home = -1;
 static uint8_t g_last_status[STATUS_LEN];
 static atomic_t g_output; /* REMOTE_OUTPUT_* asked for, until applied */
 
@@ -601,7 +606,7 @@ static ssize_t write_flask(struct bt_conn *conn, const struct bt_gatt_attr *attr
 		return BT_GATT_ERR(REMOTE_ERR_LOCKED);
 	}
 #if IS_ENABLED(CONFIG_RAW_HID)
-	int perr = remote_flask_check(len, CONFIG_RAW_HID_REPORT_SIZE);
+	int perr = remote_flask_check(buf, len, CONFIG_RAW_HID_REPORT_SIZE);
 
 	if (perr) {
 		return BT_GATT_ERR(perr);
@@ -1180,6 +1185,63 @@ BT_CONN_CB_DEFINE(phone_remote_conn) = {
 	.disconnected = on_disconnected,
 };
 
+/* ---- the profile to come back to ------------------------------------------ */
+
+static void home_save(int home)
+{
+	if (g_home == home) {
+		return;
+	}
+	g_home = (int8_t)home;
+	settings_save_one("phone_remote/home", &g_home, sizeof(g_home));
+}
+
+static bool profile_is_phone(int idx)
+{
+	for (int i = 0; i < g_phones.n && i < PHONES_MAX; i++) {
+		if (zmk_ble_profile_index(&g_phones.addr[i]) == idx) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
+ * After boot: a window was open when the dongle went down (g_home set), or
+ * the saved active profile is a phone's (&bt BT_SEL onto it, or a window
+ * whose home never got saved). Back to a host profile: the saved one, else
+ * the lowest that is not a phone's.
+ */
+static void home_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	int active = zmk_ble_active_profile_index();
+	int target = -1;
+
+	if (pair_open() || cfg_open()) {
+		return; /* a later settings commit, inside a live window */
+	}
+	if (g_home >= 0 && g_home < ZMK_BLE_PROFILE_COUNT && g_home != active &&
+	    !profile_is_phone(g_home)) {
+		target = g_home;
+	} else if (profile_is_phone(active)) {
+		for (int i = 0; i < ZMK_BLE_PROFILE_COUNT; i++) {
+			if (!profile_is_phone(i)) {
+				target = i;
+				break;
+			}
+		}
+	}
+	home_save(-1);
+	if (target >= 0) {
+		LOG_INF("remote: booted on profile %d, back to %d", active, target);
+		adv_release();
+		zmk_ble_prof_select(target);
+	}
+}
+static K_WORK_DELAYABLE_DEFINE(g_home_work, home_fn);
+
 /* ---- pairing ------------------------------------------------------------- */
 
 /* IO capabilities, Core Spec Vol 3 Part H 3.5.1 Table 3.4. Against our
@@ -1385,6 +1447,7 @@ static void pair_open_fn(struct k_work *work)
 	/* The advertiser back to ZMK first, or ZMK's switch cannot start it. */
 	adv_release();
 	if (free_slot != g_prev_profile) {
+		home_save(g_prev_profile);
 		zmk_ble_prof_select(free_slot);
 	}
 
@@ -1428,6 +1491,7 @@ static void pair_close_fn(struct k_work *work)
 		zmk_ble_prof_select(g_prev_profile);
 	}
 	g_pair_profile = -1;
+	home_save(-1);
 	g_just_paired = false;
 	g_wait_variant = 0;
 	adv_check();
@@ -1579,17 +1643,30 @@ static void cfg_toggle_fn(struct k_work *work)
 		return;
 	}
 
+	g_cfg_prev_profile = zmk_ble_active_profile_index();
+	g_cfg_profile = idx;
+	/* Timer first: a disconnect from here on reschedules it to now, and
+	 * must not be pushed back out to the full window by us. */
+	k_work_reschedule(&g_cfg_close,
+			  K_SECONDS(CONFIG_TOTEM_PHONE_REMOTE_CONFIG_WINDOW_S));
 	K_SPINLOCK(&g_lock) {
 		g_cfg_conn = conn; /* phone_get()'s reference */
 	}
-	g_cfg_prev_profile = zmk_ble_active_profile_index();
-	g_cfg_profile = idx;
+	/* The phone may have gone between phone_get() and the line above,
+	 * when on_disconnected could not see it yet. Zephyr marks the link
+	 * disconnected before it runs the callbacks. */
+	struct bt_conn_info info;
+
+	if (bt_conn_get_info(conn, &info) || info.state != BT_CONN_STATE_CONNECTED) {
+		cfg_close_fn(NULL);
+		remote_screen_show(REMOTE_VIEW_NO_PHONE, 0);
+		return;
+	}
 	if (idx != g_cfg_prev_profile) {
+		home_save(g_cfg_prev_profile);
 		adv_release(); /* ZMK's switch needs the advertiser */
 		zmk_ble_prof_select(idx);
 	}
-	k_work_reschedule(&g_cfg_close,
-			  K_SECONDS(CONFIG_TOTEM_PHONE_REMOTE_CONFIG_WINDOW_S));
 	LOG_INF("remote: config window open");
 	remote_screen_show(REMOTE_VIEW_CONFIG, 0);
 	remote_status_kick();
@@ -1616,6 +1693,7 @@ static void cfg_close_fn(struct k_work *work)
 		zmk_ble_prof_select(g_cfg_prev_profile);
 	}
 	g_cfg_profile = -1;
+	home_save(-1);
 	adv_check();
 	LOG_INF("remote: config window closed");
 	remote_screen_hide(REMOTE_VIEW_CONFIG);
@@ -1677,12 +1755,24 @@ static int remote_set(const char *name, size_t len, settings_read_cb read_cb,
 		    g_phones.n > PHONES_MAX) {
 			memset(&g_phones, 0, sizeof(g_phones));
 		}
+	} else if (settings_name_steq(name, "home", NULL) && len == sizeof(g_home)) {
+		if (read_cb(cb_arg, &g_home, sizeof(g_home)) != sizeof(g_home)) {
+			g_home = -1;
+		}
 	}
 	return 0;
 }
 
+/* Settings are in (ZMK's profiles too, by the time the work runs): check
+ * the profile ZMK came back on. */
+static int remote_commit(void)
+{
+	k_work_reschedule(&g_home_work, K_SECONDS(1));
+	return 0;
+}
+
 SETTINGS_STATIC_HANDLER_DEFINE(phone_remote, "phone_remote", NULL, remote_set,
-			       NULL, NULL);
+			       remote_commit, NULL);
 
 static int remote_init(void)
 {

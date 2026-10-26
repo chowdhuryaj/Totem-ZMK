@@ -140,11 +140,46 @@ static void test_mouse(void)
 
 static void test_flask(void)
 {
-	/* One raw-HID report per ATT value, 1..32 bytes; no fragments. */
-	CHECK(remote_flask_check(32, 32) == 0);
-	CHECK(remote_flask_check(5, 32) == 0);
-	CHECK(remote_flask_check(0, 32) == REMOTE_ERR_LEN);
-	CHECK(remote_flask_check(33, 32) == REMOTE_ERR_LEN);
+	uint8_t f[32] = {0};
+
+#define FR(c, ch, id) (f[0] = (c), f[1] = (ch), f[2] = (id), f)
+
+	/* Length: 5..32, no fragments; flask_proto ignores < 5 silently. */
+	CHECK(remote_flask_check(FR(0x08, 0x00, 0x01), 32, 32) == 0);
+	CHECK(remote_flask_check(FR(0x08, 0x00, 0x01), 5, 32) == 0);
+	CHECK(remote_flask_check(FR(0x08, 0x00, 0x01), 4, 32) == REMOTE_ERR_LEN);
+	CHECK(remote_flask_check(FR(0x08, 0x00, 0x01), 0, 32) == REMOTE_ERR_LEN);
+	CHECK(remote_flask_check(FR(0x08, 0x00, 0x01), 33, 32) == REMOTE_ERR_LEN);
+
+	/* Meta: version and family GET only. */
+	CHECK(remote_flask_check(FR(0x08, 0x00, 0x03), 32, 32) == 0);
+	CHECK(remote_flask_check(FR(0x08, 0x00, 0x02), 32, 32) == REMOTE_ERR_VALUE);
+	CHECK(remote_flask_check(FR(0x08, 0x00, 0x04), 32, 32) == REMOTE_ERR_VALUE);
+	CHECK(remote_flask_check(FR(0x07, 0x00, 0x05), 32, 32) == REMOTE_ERR_VALUE);
+	CHECK(remote_flask_check(FR(0x07, 0x00, 0x01), 32, 32) == REMOTE_ERR_VALUE);
+
+	/* Live input: keystate bitmap, hold-tap log, macro playback. */
+	CHECK(remote_flask_check(FR(0x08, 0x23, 0x01), 32, 32) == REMOTE_ERR_VALUE);
+	CHECK(remote_flask_check(FR(0x08, 0x2A, 0x54), 32, 32) == REMOTE_ERR_VALUE);
+	CHECK(remote_flask_check(FR(0x08, 0x25, 0x06), 32, 32) == REMOTE_ERR_VALUE);
+	CHECK(remote_flask_check(FR(0x07, 0x25, 0x06), 32, 32) == REMOTE_ERR_VALUE);
+
+	/* Pointing and other channels: refused. */
+	CHECK(remote_flask_check(FR(0x07, 0x10, 0x01), 32, 32) == REMOTE_ERR_VALUE);
+	CHECK(remote_flask_check(FR(0x07, 0x2D, 0x01), 32, 32) == REMOTE_ERR_VALUE);
+	CHECK(remote_flask_check(FR(0x07, 0x21, 0x01), 32, 32) == REMOTE_ERR_VALUE);
+	CHECK(remote_flask_check(FR(0x01, 0x2A, 0x50), 32, 32) == REMOTE_ERR_VALUE);
+
+	/* Config: allowed, SET/GET/SAVE. */
+	const uint8_t ok_ch[] = {0x11, 0x16, 0x19, 0x24, 0x25, 0x28, 0x2A, 0x2B, 0x2C};
+
+	for (size_t i = 0; i < sizeof(ok_ch); i++) {
+		CHECK(remote_flask_check(FR(0x07, ok_ch[i], 0x01), 32, 32) == 0);
+		CHECK(remote_flask_check(FR(0x08, ok_ch[i], 0x50), 32, 32) == 0);
+		CHECK(remote_flask_check(FR(0x09, ok_ch[i], 0x00), 32, 32) == 0);
+	}
+	CHECK(remote_flask_check(FR(0x09, 0x23, 0x00), 32, 32) == REMOTE_ERR_VALUE);
+#undef FR
 
 	/* Wire constants the phone app is built against. */
 	CHECK(REMOTE_STATE_CONFIG == 0x10);
