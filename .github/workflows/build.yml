@@ -1,5 +1,10 @@
 on: [push, pull_request, workflow_dispatch]
 
+# Read-only token: the build needs checkout and artifact upload, nothing
+# that writes to the repo.
+permissions:
+  contents: read
+
 jobs:
   build:
     # Pinned: zmk main @ 2026-10-09, the commit run 40394706712 built with.
