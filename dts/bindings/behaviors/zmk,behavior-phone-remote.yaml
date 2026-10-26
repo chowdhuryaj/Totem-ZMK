@@ -1,5 +1,6 @@
 # Phone remote keys (docs/phone-remote.md): open/cancel the pairing window,
-# switch phone input on/off, forget paired phones.
+# switch phone input on/off, forget paired phones, open/close the config
+# window (Studio + Flask tunnel for the connected phone).
 
 description: Phone remote action
 
@@ -15,3 +16,4 @@ properties:
       - "pair"
       - "toggle"
       - "clear"
+      - "config"

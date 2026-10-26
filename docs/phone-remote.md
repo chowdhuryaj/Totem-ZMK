@@ -48,7 +48,7 @@ also adds one connection (`BT_MAX_CONN` 7) and two bonds (`BT_MAX_PAIRED`
 
 ## Keys
 
-Three Studio macros in `totem_dongle.overlay`, not bound in `totem.keymap`.
+Four Studio macros in `totem_dongle.overlay`, not bound in `totem.keymap`.
 Assign them in Studio / Totem-Flask:
 
 - **Phone Pair** (`&phone_pair`): opens the 60 s pairing window. Pressed again
@@ -57,6 +57,52 @@ Assign them in Studio / Totem-Flask:
   remembered across reboots. Off: every phone write is refused.
 - **Forget Phones** (`&phone_clear`): forgets both paired phones (their ZMK
   profiles and bonds).
+- **Phone Config Unlock** (`&phone_config_unlock`): opens the config window
+  (below) for the connected paired phone. Pressed again while open, closes
+  it.
+
+## Config window (Studio and Flask from the phone)
+
+Pressing **Phone Config Unlock** while a paired phone is connected (on an L4
+link, phone input on, no pairing window open) opens a window of
+`CONFIG_TOTEM_PHONE_REMOTE_CONFIG_WINDOW_S` seconds (default 300). The
+Prospector shows CONFIG and an m:ss countdown; with no such phone it shows
+NO PHONE and nothing opens. While open, that phone's link may also use:
+
+- ZMK Studio's BLE service (`00000000-0196-6107-C967-C5CFB1C2482A`);
+- the Flask tunnel characteristic `7E4E0007-5C1A-4B2E-9D3F-8A6B4C2D1E0F`.
+
+It closes on timeout, when the phone disconnects, on a second press, when
+Phone Remote On/Off switches input off, when Phone Pair opens the pairing
+window, and on Forget Phones. Status state bit4 is set while it is open.
+
+ZMK Studio indicates its replies to the active profile's host, not to the
+link that asked (`gatt_rpc_transport.c` at the pinned ZMK). So the window
+switches ZMK to the phone's profile and back when it closes, as the pairing
+window does. Over USB that changes nothing; over BLE, the Totem's typing
+goes nowhere until the window closes.
+
+### Flask tunnel (characteristic 0x0007)
+
+Write (with response) + Notify, LESC + AUTHEN like the rest of the service.
+It is a third zmk-raw-hid transport beside USB and BLE HOG (fork branch
+`transport-scoped`, `RAW_HID_TRANSPORT_EXT`):
+
+- A write is one Flask frame: 1 to `CONFIG_RAW_HID_REPORT_SIZE` (32) bytes,
+  the same bytes a raw-HID output report carries. Shorter frames are
+  zero-padded by the firmware. Errors: `0x0D` empty or longer than 32,
+  `0x80` phone input off, `0x82` config window closed or another link.
+- The reply is one 32-byte notification on the same characteristic, to this
+  phone only. Subscribe before writing. Replies never go to USB or BLE HOG.
+- Unsolicited Flask sends (none exist in zmk-flask-modules today) reach the
+  phone only while it is subscribed and the window is open. A reply raised
+  after the window closed (a slow SAVE echo) is dropped.
+- No fragmentation: the link needs ATT MTU >= 35 (32 + 3). The dongle allows
+  up to 65 (`BT_L2CAP_TX_MTU`, `BT_BUF_ACL_RX_SIZE` 69) and asks for an MTU
+  exchange when the phone connects; iOS and Chrome on Android negotiate one
+  themselves. Long writes are refused (`BT_ATT_PREPARE_COUNT=0`), and a reply
+  on a smaller MTU is dropped with a log line. An app should check its MTU
+  (iOS `maximumWriteValueLength`) is at least 32 before offering tuning.
 
 ## Pair a phone
 
@@ -80,12 +126,14 @@ ASCII text (US layout), switch `&out` between USB and BLE (Control 0x07),
 read Status (remote on, USB up, typing, window open, host LEDs, queue room,
 output, both halves' batteries).
 
-Cannot: open the pairing window, switch phone input off or forget phones
-(keys only), drive NEXUS actions, or use any other GATT service. A phone's
-link is limited to the remote service, GAP and GATT, so it cannot act as a
-BLE keyboard host (HID services refused) or reach ZMK Studio's BLE RPC
-service (with `STUDIO_LOCKING=n` any app on a paired phone could otherwise
-rewrite the keymap).
+Cannot: open the pairing or config window, switch phone input off or
+forget phones (keys only), drive NEXUS actions, or use any other GATT
+service. A phone's link is limited to the remote service, GAP and GATT, so
+it cannot act as a BLE keyboard host (HID services refused) or reach ZMK
+Studio's BLE RPC service (with `STUDIO_LOCKING=n` any app on a paired phone
+could otherwise rewrite the keymap). The one exception is the config window
+above, opened from the keyboard: Studio and the Flask tunnel, for its
+length only.
 
 ## Deltas from the NEXUS protocol page
 
@@ -94,6 +142,11 @@ rewrite the keymap).
 - Status `features`: bit4 (HOST screen) clear. Bit3 stays set because
   Control 0x07 works; an app must not offer 0x06 actions here. Bit5
   (batteries) is set when the dongle fetches the halves' batteries (it does).
+  Bit6 (Totem): the config window and Flask tunnel exist.
+- Status `state` bit4 (Totem): the config window is open. Bits 0-3 as
+  NEXUS (on, USB ready, typing, pairing window open).
+- Characteristic `0x0007` (Totem): the Flask tunnel. ATT error `0x82`
+  (Totem): Flask write outside the config window.
 - Status `host_leds` is 0 unless `CONFIG_ZMK_HID_INDICATORS` is on (it is
   not; turning it on changes the HID descriptor). Without it, typed letters
   come out in the wrong case while Caps Lock is on.
@@ -138,6 +191,16 @@ Also on the dongle: GAP Device Name is read-only over the air
 (`BT_DEVICE_NAME_GATT_WRITABLE=n`), so a paired phone or host cannot rename
 it. Every west module in `config/west.yml` and the CI workflow are pinned to
 SHAs.
+
+Config window: opened only by a key on the keyboard, only for the phone
+being served, only on an L4 link to a stored phone. Inside it the phone has
+what Studio and Flask have over USB: it can rewrite the keymap and tuning
+(`STUDIO_LOCKING=n`). Any app on that phone holding the bond gets the same
+access for the window's length. GATT notifications are not filtered by the
+authorization callback, so a phone that subscribed to Studio's
+characteristic inside the window stays subscribed after it closes; Studio
+replies only go to the active profile's host, which is the phone's only
+while the window is open. Close the window (press again) when done.
 
 Accepted: any app on a paired phone can use the phone's bond (the OS owns
 it), so a phone app or a web page granted the device in the browser's
@@ -225,6 +288,20 @@ Android (Samsung Z Flip, Chrome)
 - [ ] After pairing, Samsung keyboard still appears (Android did not adopt
       Totem as a keyboard).
 - [ ] App closed and reopened: reconnects with no code.
+
+Config window
+- [ ] Phone Config Unlock with the app connected: CONFIG and a countdown;
+      Status state bit4 set, features bit6 set.
+- [ ] With no phone connected: NO PHONE, nothing opens.
+- [ ] Inside: Studio from the phone reads the keymap; a Flask GET over
+      `0x0007` gets a 32-byte notification; a SAVE echo arrives.
+- [ ] Inside: no Flask reply appears on the Mac (Totem-Flask over BLE) or USB.
+- [ ] Outside (timed out, pressed again, input off, phone disconnected):
+      Flask write fails `0x82` (`0x80` when input is off); Studio read fails
+      (Insufficient Authorization); bit4 clear; the previous BLE profile is
+      active again.
+- [ ] MTU: nRF Connect with MTU left at 23, write 32 bytes to `0x0007`:
+      refused, no crash; after requesting MTU 65 it works.
 
 Use
 - [ ] Mouse, clicks, drag, scroll; keys, shortcuts, media keys.

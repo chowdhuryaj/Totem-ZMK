@@ -82,9 +82,11 @@ manifest:
       # the request came in on (upstream sent every reply to USB AND BLE),
       # and CONFIG_RAW_HID_USB=n drops the USB raw HID interface (dongle).
       # BLE replies go to the host that wrote the request, not the active
-      # profile. This module IS the Flask transport. Pinned; bump deliberately.
+      # profile. RAW_HID_TRANSPORT_EXT lets the phone remote's Flask tunnel
+      # (docs/phone-remote.md) be a third transport. This module IS the Flask
+      # transport. Pinned; bump deliberately.
       remote: chowdhuryaj
-      revision: 6606ecfd29e2a51d60763155dae7bf4a0575de69
+      revision: eb7f812f062bfb828363b545fa52c77012eca8cc
 
     # Prospector display dongle: status screen shield `prospector_adapter` for
     # the totem_dongle build. `feat/new-status-screens` is the Zephyr 4.1

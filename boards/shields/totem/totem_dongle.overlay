@@ -99,6 +99,15 @@
             #binding-cells = <0>;
             action = "clear";
         };
+
+        /* Opens (pressed again: closes) the config window: for
+         * CONFIG_TOTEM_PHONE_REMOTE_CONFIG_WINDOW_S the connected paired
+         * phone may use ZMK Studio and the Flask tunnel. */
+        phone_config_unlock: phone_config_unlock {
+            compatible = "zmk,behavior-phone-remote";
+            #binding-cells = <0>;
+            action = "config";
+        };
     };
 
     /* The module's behaviors carry no Studio metadata at the pinned ZMK (same
@@ -142,6 +151,13 @@
             display-name = "Forget Phones";
             #binding-cells = <0>;
             bindings = <&phone_clear>;
+        };
+
+        phone_config_unlock_m: phone_config_unlock_m {
+            compatible = "zmk,behavior-macro";
+            display-name = "Phone Config Unlock";
+            #binding-cells = <0>;
+            bindings = <&phone_config_unlock>;
         };
     };
 };

@@ -138,12 +138,29 @@ static void test_mouse(void)
 	CHECK(remote_mouse_parse(pkt, 7, &m) == REMOTE_ERR_LEN);
 }
 
+static void test_flask(void)
+{
+	/* One raw-HID report per ATT value, 1..32 bytes; no fragments. */
+	CHECK(remote_flask_check(32, 32) == 0);
+	CHECK(remote_flask_check(5, 32) == 0);
+	CHECK(remote_flask_check(0, 32) == REMOTE_ERR_LEN);
+	CHECK(remote_flask_check(33, 32) == REMOTE_ERR_LEN);
+
+	/* Wire constants the phone app is built against. */
+	CHECK(REMOTE_STATE_CONFIG == 0x10);
+	CHECK(REMOTE_FEAT_CONFIG == 0x40);
+	CHECK(REMOTE_ERR_LOCKED == 0x82);
+	CHECK((REMOTE_STATE_ON | REMOTE_STATE_USB | REMOTE_STATE_TYPING |
+	       REMOTE_STATE_PAIRING | REMOTE_STATE_CONFIG) == 0x1F);
+}
+
 int main(void)
 {
 	test_ascii();
 	test_text();
 	test_key();
 	test_mouse();
+	test_flask();
 
 	if (g_fail) {
 		printf("%d check(s) failed\n", g_fail);

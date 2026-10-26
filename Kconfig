@@ -35,6 +35,15 @@ config TOTEM_PHONE_REMOTE_HOLD_TIMEOUT_MS
 	int "Release held keys after this long without phone traffic, ms"
 	default 1000
 
+config TOTEM_PHONE_REMOTE_CONFIG_WINDOW_S
+	int "Config window (&phone_config_unlock) length, seconds"
+	default 300
+	range 10 3600
+	help
+	  While open, the connected paired phone may also use ZMK Studio's
+	  service and the Flask tunnel characteristic. Closes on timeout,
+	  phone disconnect, a second press, or phone input switched off.
+
 config TOTEM_PHONE_REMOTE_PHONE_ADV
 	bool "Advertise for paired phones while ZMK is not advertising"
 	default y

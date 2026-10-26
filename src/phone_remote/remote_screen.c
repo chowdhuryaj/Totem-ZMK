@@ -114,6 +114,11 @@ static void draw_fn(struct k_work *work)
 		until = g_until;
 	}
 
+	/* Under a result view or after it, the config countdown comes back. */
+	if (view == REMOTE_VIEW_NONE && remote_config_remaining_s() > 0) {
+		view = REMOTE_VIEW_CONFIG;
+	}
+
 	if (!g_box) {
 		if (view == REMOTE_VIEW_NONE) {
 			return;
@@ -140,6 +145,19 @@ static void draw_fn(struct k_work *work)
 		/* Six digits, zero-padded: the phone asks for exactly six. */
 		snprintf(big, sizeof(big), "%06u", (unsigned int)(passkey % 1000000));
 		snprintf(foot, sizeof(foot), "%us left", (unsigned int)left);
+		break;
+	case REMOTE_VIEW_CONFIG: {
+		uint32_t c = remote_config_remaining_s();
+
+		title = "CONFIG";
+		snprintf(big, sizeof(big), "%u:%02u", (unsigned int)(c / 60),
+			 (unsigned int)(c % 60));
+		snprintf(foot, sizeof(foot), "phone may edit");
+		break;
+	}
+	case REMOTE_VIEW_NO_PHONE:
+		snprintf(big, sizeof(big), "NO PHONE");
+		snprintf(foot, sizeof(foot), "open the app first");
 		break;
 	case REMOTE_VIEW_PAIRED:
 		snprintf(big, sizeof(big), "PAIRED");

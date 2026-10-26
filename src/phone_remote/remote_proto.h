@@ -22,6 +22,17 @@
 #define REMOTE_ERR_VALUE 0x13 /* BT_ATT_ERR_VALUE_NOT_ALLOWED     */
 #define REMOTE_ERR_OFF   0x80 /* remote mode is off               */
 #define REMOTE_ERR_FULL  0x81 /* text queue full                  */
+#define REMOTE_ERR_LOCKED 0x82 /* Flask tunnel: config window closed */
+
+/* Status byte 1 (state). */
+#define REMOTE_STATE_ON      0x01 /* phone input on                     */
+#define REMOTE_STATE_USB     0x02 /* USB HID ready                      */
+#define REMOTE_STATE_TYPING  0x04 /* text queue typing                  */
+#define REMOTE_STATE_PAIRING 0x08 /* pairing window open                */
+#define REMOTE_STATE_CONFIG  0x10 /* config window open (this phone)    */
+
+/* Status byte 5 (features), Totem additions. */
+#define REMOTE_FEAT_CONFIG 0x40 /* config window + Flask tunnel 0x0007 */
 
 #define REMOTE_PAGE_KEYBOARD 0x07
 #define REMOTE_PAGE_CONSUMER 0x0C
@@ -67,6 +78,10 @@ enum remote_ctrl_op {
 /** @return 0, or a REMOTE_ERR_* code. */
 int remote_key_parse(const uint8_t *buf, size_t len, struct remote_key *out);
 int remote_mouse_parse(const uint8_t *buf, size_t len, struct remote_mouse *out);
+
+/** A Flask tunnel frame: 1..@p max bytes (one raw-HID report, no
+ * fragmentation). @return 0 or REMOTE_ERR_LEN. */
+int remote_flask_check(size_t len, size_t max);
 
 /** @return 0 if every byte is one the dongle can type, else REMOTE_ERR_*. */
 int remote_text_check(const uint8_t *buf, size_t len);

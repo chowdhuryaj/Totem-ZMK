@@ -30,7 +30,7 @@ from bleak.exc import BleakError
 
 B = "-5c1a-4b2e-9d3f-8a6b4c2d1e0f"
 SVC = "7e4e0001" + B
-MOUSE, KEY, TEXT, CTRL, STATUS = ("7e4e000%d" % n + B for n in (2, 3, 4, 5, 6))
+MOUSE, KEY, TEXT, CTRL, STATUS, FLASK = ("7e4e000%d" % n + B for n in (2, 3, 4, 5, 6, 7))
 STUDIO_SVC = "00000000-0196-6107-c967-c5cfb1c2482a"
 STUDIO_RPC = "00000001-0196-6107-c967-c5cfb1c2482a"
 
@@ -85,6 +85,8 @@ async def host_check(c):
     await refused("Key write (release 'a')", lambda: c.write_gatt_char(KEY, bytes([0, 0, 7, 0, 4, 0]), response=True))
     await refused("Text write (0x01)", lambda: c.write_gatt_char(TEXT, b"\x01", response=True))
     await refused("Control write (keepalive)", lambda: c.write_gatt_char(CTRL, b"\x02", response=True))
+    # Flask GET meta 0x01 (protocol version): read-only if it ever got through.
+    await refused("Flask tunnel write (GET version)", lambda: c.write_gatt_char(FLASK, bytes([8, 0, 1, 0, 0]), response=True))
     # Write Without Response has no reply: nothing to see from this side.
     await c.write_gatt_char(MOUSE, bytes(8), response=False)
     print("INFO  Mouse is Write Without Response: refusal is not visible here; "

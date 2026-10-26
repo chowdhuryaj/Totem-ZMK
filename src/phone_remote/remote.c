@@ -8,7 +8,9 @@
  * refused and unpaired); unknown newcomers during the window are dropped;
  * a bonded host reconnecting in the window is not taken for the phone;
  * stale phones pruned against real bonds; &phone_pair pressed again
- * cancels the window; strangers on the phone advertising are dropped.
+ * cancels the window; strangers on the phone advertising are dropped;
+ * &phone_config_unlock opens a timed window in which the phone may use ZMK
+ * Studio and the Flask tunnel (characteristic 0x0007).
  *
  * Phone remote: the phone's side of the radio.
  *
@@ -77,6 +79,10 @@
 #include <zmk/events/battery_state_changed.h>
 #endif
 
+#if IS_ENABLED(CONFIG_RAW_HID)
+#include <raw_hid/events.h>
+#endif
+
 #include "remote_priv.h"
 
 LOG_MODULE_REGISTER(phone_remote, CONFIG_ZMK_LOG_LEVEL);
@@ -118,6 +124,11 @@ static const struct bt_uuid_128 k_key = BT_UUID_INIT_128(REMOTE_UUID(3));
 static const struct bt_uuid_128 k_text = BT_UUID_INIT_128(REMOTE_UUID(4));
 static const struct bt_uuid_128 k_ctrl = BT_UUID_INIT_128(REMOTE_UUID(5));
 static const struct bt_uuid_128 k_status = BT_UUID_INIT_128(REMOTE_UUID(6));
+static const struct bt_uuid_128 k_flask = BT_UUID_INIT_128(REMOTE_UUID(7));
+
+/* ZMK Studio's RPC service (app/src/studio/gatt_rpc_transport.c). */
+static const struct bt_uuid_128 k_studio = BT_UUID_INIT_128(
+	BT_UUID_128_ENCODE(0x00000000, 0x0196, 0x6107, 0xc967, 0xc5cfb1c2482a));
 
 static bool g_on = true; /* remote mode, persisted */
 
@@ -127,7 +138,14 @@ static struct {
 	uint16_t start, end;
 } g_allow[2];
 static uint8_t g_nallow;
-static bool g_allow_open; /* init only: the last range has no end yet */
+
+/* ZMK Studio's service: a phone's link reaches it only inside the config
+ * window. */
+static struct {
+	uint16_t start, end;
+} g_studio;
+
+static uint16_t *g_open_end; /* init only: the range still missing its end */
 
 /* The halves' batteries, 0-100 or 0xFF, by split peripheral slot: slot 0 is
  * whichever half paired first (build.yaml pairs LEFT first). */
@@ -136,6 +154,7 @@ static uint8_t g_batt[2] = {0xFF, 0xFF};
 static struct k_spinlock g_lock;
 static struct bt_conn *g_phone;     /* the phone being served; g_lock */
 static struct bt_conn *g_pair_conn; /* the connection pairing now; g_lock */
+static struct bt_conn *g_cfg_conn;  /* the phone in the config window; g_lock */
 
 /* Paired phones, persisted. Read on the Bluetooth thread for every ATT op,
  * written there (pairing) and on the work queue (forgetting); a torn read
@@ -151,10 +170,18 @@ static uint32_t g_wait_variant; /* 1: show AGAIN rather than WAIT */
 static bt_addr_le_t g_forget;   /* a known phone that lost its pairing */
 static bt_addr_le_t g_reject;   /* paired below L4: unpair it */
 static int g_prev_profile;      /* work queue only */
+static int g_cfg_profile = -1;  /* work queue only: the phone's, while open */
+static int g_cfg_prev_profile;  /* work queue only */
 static uint8_t g_last_status[STATUS_LEN];
 static atomic_t g_output; /* REMOTE_OUTPUT_* asked for, until applied */
 
-enum remote_action { REMOTE_ACT_PAIR, REMOTE_ACT_TOGGLE, REMOTE_ACT_CLEAR };
+/* Order = the binding's action enum (zmk,behavior-phone-remote.yaml). */
+enum remote_action {
+	REMOTE_ACT_PAIR,
+	REMOTE_ACT_TOGGLE,
+	REMOTE_ACT_CLEAR,
+	REMOTE_ACT_CONFIG,
+};
 
 static void remote_pair_cancel(void);
 static void status_fn(struct k_work *work);
@@ -166,6 +193,10 @@ static void drop_fn(struct k_work *work);
 static void forget_fn(struct k_work *work);
 static void phones_save_fn(struct k_work *work);
 static void reject_fn(struct k_work *work);
+static void cfg_toggle_fn(struct k_work *work);
+static void cfg_close_fn(struct k_work *work);
+static K_WORK_DEFINE(g_cfg_toggle_work, cfg_toggle_fn);
+static K_WORK_DELAYABLE_DEFINE(g_cfg_close, cfg_close_fn);
 static K_WORK_DEFINE(g_reject_work, reject_fn);
 static K_WORK_DELAYABLE_DEFINE(g_status_work, status_fn);
 static K_WORK_DEFINE(g_pair_open_work, pair_open_fn);
@@ -235,6 +266,43 @@ uint32_t remote_pair_remaining_s(void)
 	return (k_ticks_to_ms_floor32(t) + 999) / 1000;
 }
 
+static bool cfg_open(void)
+{
+	return g_cfg_conn != NULL;
+}
+
+/* A reference to the phone in the config window, or NULL. Caller unrefs. */
+static struct bt_conn *cfg_get(void)
+{
+	struct bt_conn *conn = NULL;
+
+	K_SPINLOCK(&g_lock) {
+		if (g_cfg_conn) {
+			conn = bt_conn_ref(g_cfg_conn);
+		}
+	}
+	return conn;
+}
+
+uint32_t remote_config_remaining_s(void)
+{
+	if (!cfg_open()) {
+		return 0;
+	}
+	k_ticks_t t = k_work_delayable_remaining_get(&g_cfg_close);
+
+	return (k_ticks_to_ms_floor32(t) + 999) / 1000;
+}
+
+/* Close the config window, from any thread: the profile switch back runs on
+ * the system work queue. */
+static void cfg_end(void)
+{
+	if (cfg_open()) {
+		k_work_reschedule(&g_cfg_close, K_NO_WAIT);
+	}
+}
+
 /* On the system work queue, where ZMK saves its own profiles: a flash write
  * from a Bluetooth callback would stall the radio's host thread - halves
  * included - for as long as the erase takes. */
@@ -281,14 +349,18 @@ static void status_bytes(uint8_t v[STATUS_LEN])
 	usb = zmk_usb_is_hid_ready();
 #endif
 	v[0] = REMOTE_PROTO_VERSION;
-	v[1] = (g_on ? BIT(0) : 0) | (usb ? BIT(1) : 0) |
-	       (remote_hid_typing() ? BIT(2) : 0) | (pair_open() ? BIT(3) : 0);
+	v[1] = (g_on ? REMOTE_STATE_ON : 0) | (usb ? REMOTE_STATE_USB : 0) |
+	       (remote_hid_typing() ? REMOTE_STATE_TYPING : 0) |
+	       (pair_open() ? REMOTE_STATE_PAIRING : 0) |
+	       (cfg_open() ? REMOTE_STATE_CONFIG : 0);
 	v[2] = host_leds();
 	v[3] = (uint8_t)free;
 	v[4] = (uint8_t)(free >> 8);
 	/* text, consumer, hwheel, output (Control 0x07; 0x06 actions are
-	 * refused), no HOST screen, batteries when the halves report them. */
-	v[5] = BIT(0) | BIT(1) | BIT(2) | BIT(3) | (REMOTE_BATTERIES ? BIT(5) : 0);
+	 * refused), no HOST screen, batteries when the halves report them,
+	 * config window + Flask tunnel. */
+	v[5] = BIT(0) | BIT(1) | BIT(2) | BIT(3) | (REMOTE_BATTERIES ? BIT(5) : 0) |
+	       (IS_ENABLED(CONFIG_RAW_HID) ? REMOTE_FEAT_CONFIG : 0);
 	/* What &out would show: the preferred transport, not the fallback. */
 	v[6] = (uint8_t)zmk_endpoint_get_preferred_transport();
 	v[7] = g_batt[0];
@@ -508,6 +580,42 @@ static struct _bt_gatt_ccc g_status_ccc =
 	BT_GATT_CCC_INITIALIZER(NULL, status_ccc_write, NULL);
 
 /*
+ * Flask tunnel: zmk-raw-hid frames from the phone, a third raw-hid transport
+ * beside USB and BLE HOG. Only the phone in the config window; outside it,
+ * REMOTE_ERR_LOCKED. No fragmentation: a frame is one ATT value, so the link
+ * needs ATT MTU >= CONFIG_RAW_HID_REPORT_SIZE + 3 (35). Longer writes cannot
+ * arrive (BT_ATT_PREPARE_COUNT=0 refuses long writes), and replies on a
+ * smaller MTU are dropped (raw_hid_ext_send). iOS and Chrome negotiate it on
+ * their own; serve() asks too.
+ */
+static ssize_t write_flask(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+			   const void *buf, uint16_t len, uint16_t offset,
+			   uint8_t flags)
+{
+	ssize_t err = gate(offset);
+
+	if (err) {
+		return err;
+	}
+	if (conn != g_cfg_conn) {
+		return BT_GATT_ERR(REMOTE_ERR_LOCKED);
+	}
+#if IS_ENABLED(CONFIG_RAW_HID)
+	int perr = remote_flask_check(len, CONFIG_RAW_HID_REPORT_SIZE);
+
+	if (perr) {
+		return BT_GATT_ERR(perr);
+	}
+	raw_hid_set_reply_transport(RAW_HID_TRANSPORT_EXT);
+	raise_raw_hid_received_event((struct raw_hid_received_event){
+		.data = (uint8_t *)buf, .length = (uint8_t)len});
+	return len;
+#else
+	return BT_GATT_ERR(REMOTE_ERR_VALUE);
+#endif
+}
+
+/*
  * LESC + AUTHEN permissions. At the pinned Zephyr, bt_gatt_check_perm()
  * checks LESC as "encrypted with SC keys" only (gatt.c, BT_KEYS_SC), not
  * MITM; AUTHEN adds security >= L3 (MITM). Together: L4, i.e. LE Secure
@@ -530,10 +638,46 @@ BT_GATT_SERVICE_DEFINE(phone_remote_svc,
 			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
 			       PERM_R, read_status, NULL, NULL),
 	BT_GATT_CCC_MANAGED(&g_status_ccc, PERM_R | PERM_W),
+	BT_GATT_CHARACTERISTIC(&k_flask.uuid,
+			       BT_GATT_CHRC_WRITE | BT_GATT_CHRC_NOTIFY,
+			       PERM_W, NULL, write_flask, NULL),
+	BT_GATT_CCC(NULL, PERM_R | PERM_W),
 );
 
 /* Primary service, then two attributes per characteristic: Status is 10. */
 #define STATUS_ATTR (&phone_remote_svc.attrs[10])
+/* Then its CCC (11), the Flask declaration (12) and value (13). */
+#define FLASK_ATTR (&phone_remote_svc.attrs[13])
+
+#if IS_ENABLED(CONFIG_RAW_HID)
+/*
+ * zmk-raw-hid sends here when the last frame came from the phone, or for an
+ * unsolicited send (every transport). Either way only to the phone in the
+ * config window, and only if it subscribed: a reply raised after the window
+ * closed (a deferred save echo) is dropped, never sent elsewhere.
+ */
+void raw_hid_ext_send(const uint8_t *data, uint8_t len)
+{
+	struct bt_conn *conn = cfg_get();
+
+	if (!conn) {
+		return;
+	}
+	if (!bt_gatt_is_subscribed(conn, FLASK_ATTR, BT_GATT_CCC_NOTIFY)) {
+		/* nothing to do */
+	} else if (bt_gatt_get_mtu(conn) < len + 3) {
+		LOG_WRN("remote: Flask reply dropped, ATT MTU %u < %u",
+			bt_gatt_get_mtu(conn), len + 3);
+	} else {
+		int err = bt_gatt_notify(conn, FLASK_ATTR, data, len);
+
+		if (err) {
+			LOG_WRN("remote: Flask notify failed (%d)", err);
+		}
+	}
+	bt_conn_unref(conn);
+}
+#endif
 
 static void drop_fn(struct k_work *work)
 {
@@ -577,7 +721,9 @@ static bool is_declaration(const struct bt_gatt_attr *attr)
  * an allowlist - our service, GAP, GATT and declarations - so a phone bond
  * reaches neither the HID services (ZMK's, zmk-raw-hid's) nor ZMK Studio's
  * RPC service (STUDIO_LOCKING=n: any app on the phone could rewrite the
- * keymap) nor anything a future module adds.
+ * keymap) nor anything a future module adds. The one exception: Studio, for
+ * the phone in the config window (&phone_config_unlock, pressed on the
+ * keyboard).
  */
 static bool authorize(struct bt_conn *conn, const struct bt_gatt_attr *attr)
 {
@@ -599,7 +745,8 @@ static bool authorize(struct bt_conn *conn, const struct bt_gatt_attr *attr)
 			return true;
 		}
 	}
-	return false;
+	return conn == g_cfg_conn && g_studio.start &&
+	       h >= g_studio.start && h <= g_studio.end;
 }
 
 static const struct bt_gatt_authorization_cb k_authz = {
@@ -607,7 +754,7 @@ static const struct bt_gatt_authorization_cb k_authz = {
 	.write_authorize = authorize,
 };
 
-/* Find the GAP and GATT services' handle ranges once. */
+/* Find the GAP, GATT and Studio services' handle ranges once. */
 static uint8_t find_allowed(const struct bt_gatt_attr *attr, uint16_t handle,
 			    void *user_data)
 {
@@ -617,15 +764,18 @@ static uint8_t find_allowed(const struct bt_gatt_attr *attr, uint16_t handle,
 	    bt_uuid_cmp(attr->uuid, BT_UUID_GATT_SECONDARY)) {
 		return BT_GATT_ITER_CONTINUE;
 	}
-	if (g_allow_open) {
-		g_allow[g_nallow - 1].end = handle - 1;
-		g_allow_open = false;
+	if (g_open_end) {
+		*g_open_end = handle - 1;
+		g_open_end = NULL;
 	}
 	if ((!bt_uuid_cmp(attr->user_data, BT_UUID_GAP) ||
 	     !bt_uuid_cmp(attr->user_data, BT_UUID_GATT)) &&
 	    g_nallow < ARRAY_SIZE(g_allow)) {
-		g_allow[g_nallow++].start = handle;
-		g_allow_open = true;
+		g_allow[g_nallow].start = handle;
+		g_open_end = &g_allow[g_nallow++].end;
+	} else if (!bt_uuid_cmp(attr->user_data, &k_studio.uuid)) {
+		g_studio.start = handle;
+		g_open_end = &g_studio.end;
 	}
 	return BT_GATT_ITER_CONTINUE;
 }
@@ -840,6 +990,16 @@ static const struct bt_conn_auth_cb k_auth = {
 	.cancel = pairing_cancel,
 };
 
+static void mtu_done(struct bt_conn *conn, uint8_t err,
+		     struct bt_gatt_exchange_params *params)
+{
+	ARG_UNUSED(params);
+
+	LOG_INF("remote: ATT MTU %u (err %u)", bt_gatt_get_mtu(conn), err);
+}
+
+static struct bt_gatt_exchange_params g_mtu_params = {.func = mtu_done};
+
 static void serve(struct bt_conn *conn)
 {
 	bool busy = false;
@@ -858,6 +1018,9 @@ static void serve(struct bt_conn *conn)
 	}
 
 	bt_conn_le_param_update(conn, PHONE_CONN_PARAM);
+	/* Flask frames need ATT MTU >= 35 (write_flask). Harmless if the phone
+	 * already exchanged, or one is in flight. */
+	bt_gatt_exchange_mtu(conn, &g_mtu_params);
 	memset(g_last_status, 0xFF, sizeof(g_last_status));
 	remote_hid_set_delay(CONFIG_TOTEM_PHONE_REMOTE_TYPE_DELAY_MS);
 	remote_status_kick();
@@ -996,6 +1159,9 @@ static void on_disconnected(struct bt_conn *conn, uint8_t reason)
 	if (pairing) {
 		bt_conn_unref(conn);
 		passkey_gone();
+	}
+	if (conn == g_cfg_conn) {
+		cfg_end();
 	}
 	if (!phone) {
 		return;
@@ -1197,6 +1363,8 @@ static void pair_open_fn(struct k_work *work)
 		remote_pair_cancel();
 		return;
 	}
+	/* Both windows switch profiles: the config one closes first. */
+	cfg_close_fn(NULL);
 	phones_prune();
 	if (g_phones.n < PHONES_MAX) {
 		for (int i = ZMK_BLE_PROFILE_COUNT - 1; i >= 0; i--) {
@@ -1295,6 +1463,8 @@ static void clear_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
+	cfg_close_fn(NULL); /* before prev: it may switch back */
+
 	int prev = zmk_ble_active_profile_index();
 
 	adv_release();
@@ -1372,6 +1542,86 @@ static void reject_fn(struct k_work *work)
 	}
 }
 
+/* ---- config window ------------------------------------------------------- */
+
+/*
+ * &phone_config_unlock: for CONFIG_TOTEM_PHONE_REMOTE_CONFIG_WINDOW_S, the
+ * phone being served may also use ZMK Studio's service and the Flask tunnel.
+ * Only a stored phone on an L4 link; pressed again, closes.
+ *
+ * ZMK Studio indicates its replies to the ACTIVE profile's host
+ * (gatt_rpc_transport.c, zmk_ble_active_profile_conn()), not to the link
+ * that wrote. So the window switches ZMK to the phone's profile, and back
+ * when it closes, as the pairing window does. While it is open, BLE keyboard
+ * output goes to the phone's profile (which the phone cannot read: its HID
+ * access stays refused); USB output is unaffected.
+ */
+static void cfg_toggle_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	if (cfg_open()) {
+		cfg_end();
+		return;
+	}
+
+	struct bt_conn *conn = phone_get();
+	int idx = conn ? zmk_ble_profile_index(bt_conn_get_dst(conn)) : -1;
+
+	if (!conn || !g_on || pair_open() || idx < 0 ||
+	    !known_phone(bt_conn_get_dst(conn)) ||
+	    bt_conn_get_security(conn) < BT_SECURITY_L4) {
+		LOG_WRN("remote: config window refused (no paired phone on L4)");
+		remote_screen_show(REMOTE_VIEW_NO_PHONE, 0);
+		if (conn) {
+			bt_conn_unref(conn);
+		}
+		return;
+	}
+
+	K_SPINLOCK(&g_lock) {
+		g_cfg_conn = conn; /* phone_get()'s reference */
+	}
+	g_cfg_prev_profile = zmk_ble_active_profile_index();
+	g_cfg_profile = idx;
+	if (idx != g_cfg_prev_profile) {
+		adv_release(); /* ZMK's switch needs the advertiser */
+		zmk_ble_prof_select(idx);
+	}
+	k_work_reschedule(&g_cfg_close,
+			  K_SECONDS(CONFIG_TOTEM_PHONE_REMOTE_CONFIG_WINDOW_S));
+	LOG_INF("remote: config window open");
+	remote_screen_show(REMOTE_VIEW_CONFIG, 0);
+	remote_status_kick();
+}
+
+static void cfg_close_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	struct bt_conn *conn = NULL;
+
+	K_SPINLOCK(&g_lock) {
+		conn = g_cfg_conn;
+		g_cfg_conn = NULL;
+	}
+	if (!conn) {
+		return;
+	}
+	bt_conn_unref(conn);
+	k_work_cancel_delayable(&g_cfg_close); /* when called directly */
+
+	if (g_cfg_profile >= 0 && zmk_ble_active_profile_index() == g_cfg_profile &&
+	    g_cfg_prev_profile != g_cfg_profile) {
+		zmk_ble_prof_select(g_cfg_prev_profile);
+	}
+	g_cfg_profile = -1;
+	adv_check();
+	LOG_INF("remote: config window closed");
+	remote_screen_hide(REMOTE_VIEW_CONFIG);
+	remote_status_kick();
+}
+
 /* ---- on / off, and the keymap actions ------------------------------------ */
 
 static void set_on(bool on)
@@ -1381,6 +1631,7 @@ static void set_on(bool on)
 	g_on = on;
 	if (!on) {
 		remote_hid_release_all(true);
+		cfg_end();
 	}
 	/* A key press, not an encoder: one flash write per toggle is fine. */
 	settings_save_one("phone_remote/on", &v, sizeof(v));
@@ -1402,6 +1653,9 @@ static void remote_do(enum remote_action action)
 		break;
 	case REMOTE_ACT_CLEAR:
 		k_work_submit(&g_clear_work);
+		break;
+	case REMOTE_ACT_CONFIG:
+		k_work_submit(&g_cfg_toggle_work);
 		break;
 	}
 }
@@ -1435,9 +1689,9 @@ static int remote_init(void)
 	/* The GATT database is static, so ZMK's HID service sits at the same
 	 * handles from boot to power-off. */
 	bt_gatt_foreach_attr(0x0001, 0xFFFF, find_allowed, NULL);
-	if (g_allow_open) {
-		g_allow[g_nallow - 1].end = 0xFFFF;
-		g_allow_open = false;
+	if (g_open_end) {
+		*g_open_end = 0xFFFF;
+		g_open_end = NULL;
 	}
 
 	/* Zephyr allows one authorization callback set; nothing else on this

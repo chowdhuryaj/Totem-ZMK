@@ -63,6 +63,9 @@ bool remote_caps_lock(void);
 /** Seconds left in the pairing window, 0 when closed. */
 uint32_t remote_pair_remaining_s(void);
 
+/** Seconds left in the config window, 0 when closed. */
+uint32_t remote_config_remaining_s(void);
+
 /* ---- remote_screen.c, callable from any thread -------------------------- */
 
 enum remote_view {
@@ -70,10 +73,12 @@ enum remote_view {
 	REMOTE_VIEW_WAIT,      /* window open, no phone has asked yet      */
 	REMOTE_VIEW_AGAIN,     /* old pairing cleared: tap Connect again   */
 	REMOTE_VIEW_PASSKEY,   /* type this number into the phone          */
+	REMOTE_VIEW_CONFIG,    /* config window open: countdown            */
 	REMOTE_VIEW_PAIRED,    /* done: the phone is ready                 */
 	REMOTE_VIEW_CONNECTED, /* a paired phone came back                 */
 	REMOTE_VIEW_FULL,      /* no phone slot or profile free            */
 	REMOTE_VIEW_HELLO,     /* Control 0x05 identify                    */
+	REMOTE_VIEW_NO_PHONE,  /* config unlock with no paired phone on    */
 };
 
 /** Show @p view; @p passkey is used by REMOTE_VIEW_PASSKEY only. */

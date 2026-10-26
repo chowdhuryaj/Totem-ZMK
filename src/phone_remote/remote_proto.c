@@ -121,3 +121,8 @@ int remote_mouse_parse(const uint8_t *buf, size_t len, struct remote_mouse *out)
 	out->hwheel = (int8_t)buf[6];
 	return 0;
 }
+
+int remote_flask_check(size_t len, size_t max)
+{
+	return (len == 0 || len > max) ? REMOTE_ERR_LEN : 0;
+}
