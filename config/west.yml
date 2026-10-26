@@ -77,13 +77,13 @@ manifest:
       revision: e6e1802dd00f46d58c35c88d9b35a69f4bed9b88
 
     - name: zmk-raw-hid
-      remote: zzeneg
-      # Pinned (main @ 2026-08-24, merge of PR #5) — this module IS the Flask
-      # transport. Bumped from e25e325 (2026-05-11) for the 2026-08-23 fix
-      # "usb: send from a static buffer, not the stack" (nRF USB DMA read a
-      # stack buffer: good header, garbage tail). Only src/usb_hid.c changed.
-      # Bump deliberately.
-      revision: 6a37765dfab6197292e7a9f47305dcf87386d56a
+      # AJ's fork, branch `transport-scoped` (on zzeneg main 6a37765, the
+      # 2026-08-23 static-buffer USB fix): replies go only to the transport
+      # the request came in on (upstream sent every reply to USB AND BLE),
+      # and CONFIG_RAW_HID_USB=n drops the USB raw HID interface (dongle).
+      # This module IS the Flask transport. Pinned; bump deliberately.
+      remote: chowdhuryaj
+      revision: 6cf315aa69eafbbf7d6ca9691c945e0fd663f2bb
 
     # Prospector display dongle: status screen shield `prospector_adapter` for
     # the totem_dongle build. `feat/new-status-screens` is the Zephyr 4.1
