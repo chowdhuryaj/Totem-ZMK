@@ -109,6 +109,27 @@ pair Just Works inside the window and type to the computer. This port:
   mid-passkey);
 - forgets remembered phones whose bond is gone (`BT_CLR_ALL`, settings
   reset) when the window opens, instead of showing NO ROOM.
+- a link that pairs but is refused stays the pairing candidate (limited
+  to the phone's allowlist) until its disconnect completes, so it never
+  holds a host's GATT access in between; a pairing with no phone slot left
+  to record it is refused the same way;
+- outside the window, an unknown device that connects through the phone
+  advertising is dropped: nothing can pair there, and it would otherwise
+  take connection after connection from the halves and the Endgame.
+
+Also on the dongle: GAP Device Name is read-only over the air
+(`BT_DEVICE_NAME_GATT_WRITABLE=n`), so a paired phone or host cannot rename
+it. Every west module in `config/west.yml` and the CI workflow are pinned to
+SHAs.
+
+Accepted: any app on a paired phone can use the phone's bond (the OS owns
+it), so a phone app or a web page granted the device in the browser's
+chooser can type to the computer while phone input is on; switch it off
+with Phone Remote On/Off when the phone is not in use. Someone who can read
+the Prospector screen and connects first inside the window can pair; open
+the window only with the phone in hand, and check PAIRED appears when the
+phone says it paired. A phone typing can also switch `&out` (Control 0x07),
+which moves the Totem's own typing to the other output.
 
 ## Android (changed vs NEXUS)
 
@@ -190,6 +211,9 @@ Use
 - [ ] Close the app: link drops in a few seconds; reopening finds Totem.
 - [ ] With a BLE host on the active profile, the app finds Totem with no code
       (phone advertising); the host, halves and Endgame stay connected.
+- [ ] With a phone paired but away and a BLE host on the active profile, an
+      unpaired device (nRF Connect on another phone) that connects to Totem
+      is dropped (`unknown device on the phone advertising` in the log).
 
 Known limits (from NEXUS): US layout only;
 a Shift held on the Totem changes the case of typed text; one phone connected
@@ -212,6 +236,38 @@ can rewrite them the same way they rewrite Endgame keys.
    moves the pointer 50 px right.
 8. Write to Control `...0005`: `05` shows HELLO; `06 01 01` fails (0x13).
 9. Press Phone Remote On/Off, write the Key packet again: it fails (0x80).
+
+## Live check from the Mac (after flashing)
+
+`tests/phone_remote/ble_live_check.py` (Python, `bleak`):
+
+```sh
+python3 -m pip install bleak
+python3 tests/phone_remote/ble_live_check.py
+```
+
+Run it with the pairing window closed. If macOS lists Totem as connected,
+disconnect it in the Bluetooth menu first (bleak cannot see a device the
+system holds). It scans for "Totem" (and says whether ZMK or the phone
+advertising answered), connects, and checks that Status read and subscribe
+and Key, Text and Control writes are refused at the gate (ATT 0x05, 0x08 or
+0x0F), not by the handler (0x13, 0x80) and not accepted. The Mac is a bonded
+ZMK host, so this is the "host / Just Works link" case. Cancel any pairing
+prompt macOS shows. Mouse is Write Without Response: its refusal shows only
+as no `remote:` line in the dongle log.
+
+`--phone` does the after-pairing checks, but only on a machine that is not
+bonded to the dongle (AJ's Mac is, as a host): pair it as the phone inside
+the window, then run with `--phone`. It reads Status and checks that ZMK
+Studio's RPC characteristic refuses the link.
+
+Needs the phone (nRF Connect), not the Mac: macOS and iOS hide the HID
+service (ZMK's keyboard and zmk-raw-hid's, both 0x1812) from apps. After
+pairing the phone, open both HID services and the Studio service
+(`00000000-0196-6107-C967-C5CFB1C2482A`) in nRF Connect and try a read and
+a CCC subscribe: each must fail (Insufficient Authorization). If the phone
+hides HID too, the phone's own keyboard still appearing after pairing is
+the evidence that it did not adopt Totem as a keyboard.
 
 Host-side protocol test (no board), from the repo root:
 

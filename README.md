@@ -28,6 +28,8 @@ and RGB: the Totem has no trackballs and no LED strip.
   below.
 - Phone remote on the Prospector dongle (a phone types and points through
   the dongle, ported from NEXUS): see [docs/phone-remote.md](docs/phone-remote.md).
+  Post-flash Bluetooth check from the Mac: `tests/phone_remote/ble_live_check.py`
+  ("Live check from the Mac" in that doc).
 - OS switching (`&sw_layout` + `slk_*` keys), app switcher (`&swapper`),
   `&num_word`, adaptive keys (`ak_rti`, `ak_alt`), smart mod/layer.
 

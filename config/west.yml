@@ -30,28 +30,37 @@ manifest:
 
     - name: zmk-adaptive-key
       remote: urob
-      revision: main
+      # main @ 2026-10-26, pinned (supply chain: a branch push must not
+      # change the image). Bump deliberately.
+      revision: e987227d625e8863343baf16bd11ff90310482a5
       path: modules/zmk/adaptive-key
 
-    # urob behavior modules track `main` — our zmk pin is main (post-v0.3),
-    # and the v0.3 tags call pre-Studio keymap APIs.
+    # urob behavior modules come from `main` (pinned by SHA) — our zmk pin is
+    # main (post-v0.3), and the v0.3 tags call pre-Studio keymap APIs.
     - name: zmk-auto-layer
       # Our fork: urob main + Studio parameter metadata (LAYER_ID param1)
       # so &num_word is app-assignable. Repoint to urob main if it merges.
+      # flask-metadata @ 2026-10-26, pinned. Bump deliberately.
       remote: chowdhuryaj
-      revision: flask-metadata
+      revision: b1f49178e1cbd482749bdd342fedd3df425ea823
 
     - name: zmk-tri-state
       remote: urob
-      revision: main
+      # main @ 2026-10-26, pinned (supply chain: a branch push must not
+      # change the image). Bump deliberately.
+      revision: c08969627245adeddbcdb6dfc1a4c167c04160e2
 
     - name: zmk-listeners
       remote: ssbb
-      revision: v1
+      # v1 @ 2026-10-26, pinned (supply chain: a branch push must not
+      # change the image). Bump deliberately.
+      revision: c240ceaf353d3138bea7695eef17049b7ade995b
 
     - name: zmk-leader-key
       remote: urob
-      revision: main
+      # main @ 2026-10-26, pinned (supply chain: a branch push must not
+      # change the image). Bump deliberately.
+      revision: 4745294d5f2bc12bbdf91471dd85bfbdbb35c47d
 
     - name: zmk-flask-modules
       remote: chowdhuryaj
@@ -63,7 +72,9 @@ manifest:
 
     - name: zmk-switch-layout
       remote: mctechnology17
-      revision: main
+      # main @ 2026-10-26, pinned (supply chain: a branch push must not
+      # change the image). Bump deliberately.
+      revision: e6e1802dd00f46d58c35c88d9b35a69f4bed9b88
 
     - name: zmk-raw-hid
       remote: zzeneg
@@ -84,10 +95,12 @@ manifest:
 
     # Endgame trackball as a BLE HID host on the dongle (central). AJ's fork,
     # `endgame` branch: adds pair-name-prefix so pairing picks the Endgame by
-    # name. Tracks the branch tip; pin to a SHA for the image you flash.
+    # name. Pinned to the branch tip 3d38606 (2026-10-26, "Stop only our own
+    # scan..."): it runs on the dongle beside the phone remote, so a branch
+    # push must not change the image. Bump deliberately.
     - name: zmk-ble-mouse-host
       remote: chowdhuryaj
-      revision: endgame
+      revision: 3d386062180f7274eee636961f5e881373436bc4
 
   self:
     path: config

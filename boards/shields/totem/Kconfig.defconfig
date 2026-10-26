@@ -68,6 +68,12 @@ config BT_MAX_PAIRED
 config TOTEM_PHONE_REMOTE
     default y
 
+# GAP Device Name is writable by any bonded peer by default (Zephyr, since
+# ZMK turns on BT_DEVICE_NAME_DYNAMIC), and the name is saved: a paired phone
+# or host could rename the dongle. ZMK sets its own name locally.
+config BT_DEVICE_NAME_GATT_WRITABLE
+    default n
+
 # The Prospector's battery widget needs peripheral battery fetching; its
 # shield defaults it on and totem.conf sets it too, so nothing to add here.
 

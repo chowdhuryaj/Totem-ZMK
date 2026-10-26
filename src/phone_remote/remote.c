@@ -8,7 +8,7 @@
  * refused and unpaired); unknown newcomers during the window are dropped;
  * a bonded host reconnecting in the window is not taken for the phone;
  * stale phones pruned against real bonds; &phone_pair pressed again
- * cancels the window.
+ * cancels the window; strangers on the phone advertising are dropped.
  *
  * Phone remote: the phone's side of the radio.
  *
@@ -749,10 +749,11 @@ static void adv_check(void)
 	}
 }
 
-/* A peripheral connection, through either advertiser, ends advertising. */
-static void adv_consumed(void)
+/* A peripheral connection, through either advertiser, ends advertising.
+ * @return whether it came in through ours. */
+static bool adv_consumed(void)
 {
-	atomic_set(&g_adv_ours, 0);
+	return atomic_clear(&g_adv_ours) != 0;
 }
 
 /* ---- status -------------------------------------------------------------- */
@@ -917,7 +918,8 @@ static void on_connected(struct bt_conn *conn, uint8_t err)
 		return;
 	}
 	/* Whoever it was, the advertising they connected through has ended. */
-	adv_consumed();
+	bool via_ours = adv_consumed();
+
 	adv_check();
 	if (err) {
 		return;
@@ -927,6 +929,13 @@ static void on_connected(struct bt_conn *conn, uint8_t err)
 	} else if (zmk_ble_profile_index(bt_conn_get_dst(conn)) >= 0) {
 		/* A bonded host (AJ's Mac, Studio) reconnecting inside the
 		 * window is a host, not the phone: leave it to ZMK. */
+		return;
+	} else if (via_ours) {
+		/* Nothing pairs through the phone advertising (it never runs
+		 * in the window), and it restarts after every connection: left
+		 * alone, a stranger could take one link after another until
+		 * the halves and the Endgame had none to reconnect with. */
+		drop(conn, "unknown device on the phone advertising");
 		return;
 	}
 	if (!pair_open()) {
@@ -1069,11 +1078,21 @@ static void pairing_cancel(struct bt_conn *conn)
 
 static void pairing_complete(struct bt_conn *conn, bool bonded)
 {
+	const bt_addr_le_t *addr = bt_conn_get_dst(conn);
 	bool ours = false;
+	bool keep = bt_conn_get_security(conn) >= BT_SECURITY_L4 &&
+		    (known_phone(addr) || g_phones.n < PHONES_MAX);
 
 	K_SPINLOCK(&g_lock) {
 		if (conn == g_pair_conn) {
-			g_pair_conn = NULL;
+			/* A rejected link stays the candidate - a phone's
+			 * link, kept out of every other service - until it is
+			 * gone (on_disconnected, or the window closing): as a
+			 * stranger it would get a host's GATT access for as
+			 * long as the disconnect takes. */
+			if (keep) {
+				g_pair_conn = NULL;
+			}
 			ours = true;
 		}
 	}
@@ -1081,23 +1100,21 @@ static void pairing_complete(struct bt_conn *conn, bool bonded)
 		return;
 	}
 
-	const bt_addr_le_t *addr = bt_conn_get_dst(conn);
-
-	if (bt_conn_get_security(conn) < BT_SECURITY_L4) {
-		/* Not LE SC with the passkey: never a phone. ZMK's own
-		 * pairing_complete runs after this one and files it into the
-		 * open profile, so clear that profile afterwards (reject_fn). */
+	if (!keep) {
+		/* Not LE SC with the passkey, or no slot to remember it in
+		 * (which would leave it a stranger): never a phone. ZMK's own
+		 * pairing_complete files it into the open profile whichever
+		 * runs first, so clear that profile afterwards (reject_fn). */
 		LOG_WRN("remote: pairing at security %d refused, unpairing",
 			bt_conn_get_security(conn));
 		bt_addr_le_copy(&g_reject, addr);
 		k_work_submit(&g_reject_work);
 		drop(conn, "paired without a passkey");
-		bt_conn_unref(conn); /* g_pair_conn's reference */
 		passkey_gone();
 		return;
 	}
 
-	if (!known_phone(addr) && g_phones.n < PHONES_MAX) {
+	if (!known_phone(addr)) {
 		bt_addr_le_copy(&g_phones.addr[g_phones.n], addr);
 		g_phones.n++;
 		phones_save();

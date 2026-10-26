@@ -2,12 +2,15 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
-    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
+    # Pinned: zmk main @ 2026-10-09, the commit run 40394706712 built with.
+    # A push to zmk main must not change how this image is built. Bump
+    # deliberately (it need not match the zmk pin in config/west.yml).
+    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@4dd95d7840eb3d5a3f59bb29fbf1ab054715ef85
   phone-remote-proto:
     # Host-side check of the phone remote wire format (no board needed).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: |
           cc -std=c11 -Wall -Wextra -Werror -Isrc/phone_remote -o /tmp/t \
             tests/phone_remote/test_remote_proto.c src/phone_remote/remote_proto.c
