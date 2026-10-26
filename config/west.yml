@@ -81,9 +81,10 @@ manifest:
       # 2026-08-23 static-buffer USB fix): replies go only to the transport
       # the request came in on (upstream sent every reply to USB AND BLE),
       # and CONFIG_RAW_HID_USB=n drops the USB raw HID interface (dongle).
-      # This module IS the Flask transport. Pinned; bump deliberately.
+      # BLE replies go to the host that wrote the request, not the active
+      # profile. This module IS the Flask transport. Pinned; bump deliberately.
       remote: chowdhuryaj
-      revision: 6cf315aa69eafbbf7d6ca9691c945e0fd663f2bb
+      revision: 6606ecfd29e2a51d60763155dae7bf4a0575de69
 
     # Prospector display dongle: status screen shield `prospector_adapter` for
     # the totem_dongle build. `feat/new-status-screens` is the Zephyr 4.1

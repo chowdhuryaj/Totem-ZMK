@@ -101,9 +101,10 @@ include:
   # RAW_HID_USB=n (no vendor 0xFF60 HID interface). Studio and Flask tuning
   # stay reachable over BLE from the Mac (Studio's BLE transport needs no
   # snippet; raw HID rides the BLE HOG service). The fork of zmk-raw-hid also
-  # sends each Flask reply only to the transport that asked. Recovery if BLE
-  # Studio fails: flash the left central's normal image path, or an older
-  # dongle UF2 with USB Studio (docs/phone-remote.md). config/totem.keymap and totem.conf apply
+  # sends each Flask reply only to the BLE host that asked. If BLE Studio
+  # fails: double-tap reset (UF2 bootloader, untouched by this), flash a
+  # dongle UF2 that still has USB Studio (CI run 40397946562, commit
+  # c8850aa) at home, edit, then flash this image back. config/totem.keymap and totem.conf apply
   # as for the halves (ZMK tries the candidate name `totem` for totem_dongle).
   # LV_Z_VDB_SIZE=25: the first CI build overflowed RAM by 34,570 B (run
   # 37823848051). Prospector double-buffers 50% of a 240x280x16bpp screen

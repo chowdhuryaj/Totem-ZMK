@@ -74,6 +74,11 @@ config TOTEM_PHONE_REMOTE
 config BT_DEVICE_NAME_GATT_WRITABLE
     default n
 
+# No USB serial console on the dongle (totem_dongle.overlay disables the
+# board's CDC-ACM node): the host sees ZMK's HID interface only.
+config BOARD_SERIAL_BACKEND_CDC_ACM
+    default n
+
 # The Prospector's battery widget needs peripheral battery fetching; its
 # shield defaults it on and totem.conf sets it too, so nothing to add here.
 

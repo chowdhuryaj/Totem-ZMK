@@ -1,0 +1,1756 @@
+/*
+ * TOTEM (GEIGEIGEIST, 38 keys, XIAO nRF52840) — Flask port of the Cyboard
+ * Imprint keymap (Cyboard-ZMK flask-parity, config/imprint.keymap).
+ * Every non-pointing feature carries over; trackball/mouse/RGB parts are
+ * dropped (no balls, no LED strip). Relocations: README.md.
+ *
+ * Key positions (transform order):
+ *          0  1  2  3  4      5  6  7  8  9
+ *         10 11 12 13 14     15 16 17 18 19
+ *      20 21 22 23 24 25     26 27 28 29 30 31
+ *               32 33 34     35 36 37
+ */
+
+/* ===== MOUSE / SCROLL TUNING =====
+ * Speed, ramp and acceleration are LIVE: the Flask app's Mouse tab (channel
+ * 0x2D, zmk-flask-modules flask_mousekeys) changes them on the board and
+ * Save persists them. The values here are the boot defaults until a Save,
+ * plus the compiled max rate (*_SPEED_PCT), which is a rebuild.
+ * Units (ZMK 484a054, behavior_input_two_axis.c): &mmv/&msc report
+ * "speed" per second at 16 ms ticks (trigger-period-ms default 16). Move speed
+ * is HID counts/second (macOS applies its own pointer curve on top; 1800 is
+ * roughly a screen width per second). Scroll speed is wheel notches/second
+ * (about 1 line each; smooth scrolling is off). &mmv/&msc themselves run at
+ * that max rate with no ramp; the flask_mk_* processors below scale it by a
+ * live percent (app default 100) and ramp it from FLOOR to full over RAMP_MS as
+ * FLOOR + (100-FLOOR)% * (t/RAMP_MS)^EXP; EXP 0 = no ramp, 1 = linear, 2 = quadratic, 3 = cubic.
+ * The live percent goes up to 400, so a 400% app setting = 4x the rate here.
+ * SPEED_PCT must be defined BEFORE pointing.h (defaults there: 600 move, 10 scroll). */
+#define MOUSE_SPEED_PCT   100   /* compiled: 100% = 1800 counts/s */
+#define MOUSE_FLOOR_PCT   40    /* boot default: start speed, % of full speed (0 = ramp from zero) */
+#define SCROLL_FLOOR_PCT  0     /* boot default: scroll start speed, % (0 = unchanged) */
+#define MOUSE_RAMP_MS     600   /* boot default: time to reach full speed */
+#define MOUSE_ACCEL_EXP   1     /* boot default: 0 uniform, 1 linear, 2 quadratic, 3 cubic */
+#define SCROLL_SPEED_PCT  100   /* compiled: 100% = 20 notches/s */
+#define SCROLL_RAMP_MS    150   /* boot default */
+#define SCROLL_ACCEL_EXP  0     /* boot default: constant speed, a short tap still scrolls >= 1 notch */
+/* Stacking speed holds (L_MOUSE thumbs), shared by pointer and scroll. Outer
+ * = /SPEED_STEP, middle = xSPEED_STEP, inner = /AMP_STEP; any held combination
+ * multiplies (outer+inner = /15). */
+#define SPEED_STEP  3
+#define AMP_STEP    5
+
+/* Derived, do not edit. */
+#define ZMK_POINTING_DEFAULT_MOVE_VAL (1800 * MOUSE_SPEED_PCT / 100)
+#define ZMK_POINTING_DEFAULT_SCRL_VAL (20 * SCROLL_SPEED_PCT / 100)
+
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/pointing.h>
+#include <input/processors.dtsi>
+#include <dt-bindings/zmk/bt.h>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/outputs.h>
+#include <dt-bindings/zmk-switch-layout/switch-layout.h>
+
+/* Layer IDs = devicetree node order below (Studio stores per-layer overrides
+ * by id, so never reorder the layer nodes). AJ's names: Navigation (was
+ * Control), Function (was Fn), Number (was Sym; digits + keypad ops),
+ * Numpad (was Num; removed on AJ's board in Studio 2026-10-03, node kept so
+ * later ids don't shift). &num_word now targets Number.
+ * Order note: the board shows Number before Function because Studio's saved
+ * layer order is 0,1,3,2,4. After a settings reset the order follows the ids
+ * (Function at index 2, Number at 3) unless it is reordered again in Studio. */
+#define L_BASE    0
+#define L_NAV     1
+#define L_FUNC    2
+#define L_NUMBER  3
+#define L_NUMPAD  4   /* removed on AJ's board in Studio 2026-10-03, unused; kept so IDs 5-10 don't shift */
+#define L_MOUSE      5
+#define L_MOUSE_SLOW 6
+#define L_SCROLL_SLOW 7   /* reused spare1 */
+#define L_SCROLL_FAST 8   /* reused spare2 */
+#define L_AMP_UP      9   /* reused spare3 */
+#define L_AMP_DOWN    10  /* reused spare4 */
+
+/* Opposite-hand positions for the positional home-row/thumb hold-taps. */
+#define KEYS_L 0 1 2 3 4 10 11 12 13 14 20 21 22 23 24 25 32 33 34
+#define KEYS_R 5 6 7 8 9 15 16 17 18 19 26 27 28 29 30 31 35 36 37
+
+/* Hold triggers for the live fht_l / fht_r: the opposite hand plus the
+ * same-hand fht keys (20, 32-34 left; 31, 35-37 right), so a same-hand
+ * thumb-mod chord (Ctrl+Shift) still holds. */
+#define FHT_TRIG_L KEYS_R 20 32 33 34
+#define FHT_TRIG_R KEYS_L 31 35 36 37
+
+/* Navigation-layer nav keys the app switcher ignores (see swapper below). */
+#define SWAP_NAV 7 8 9 16 17 18 19
+
+/* OS mode = switch-layout index (mctechnology17/zmk-switch-layout), stored in
+ * settings so it survives reboot/reflash. slk_* behaviors below pick the
+ * right chord per OS; &sw_layout OS_NEXT (Navigation layer, position 25)
+ * toggles. */
+#define OS_PC  0
+#define OS_MAC 1
+#define OS_NEXT ZMK_SWITCH_LAYOUT_NEXT
+
+&mt {
+    quick-tap-ms = <150>;
+    flavor = "tap-preferred";
+};
+
+/* Mouse move/scroll: the behaviors emit their compiled max rate at once
+ * (time-to-max-speed-ms 0 = no ramp, behavior_input_two_axis.c speed()); the
+ * live speed and ramp are the flask_mk_* processors on the listeners' base
+ * chains below. */
+&mmv {
+    time-to-max-speed-ms = <0>;
+};
+
+&msc {
+    time-to-max-speed-ms = <0>;
+};
+
+/ {
+    /* Live speed % + ramp (Flask channel 0x2D). gap-ms: a quiet period this
+     * long ends a movement, so the next event restarts the ramp. &mmv reports
+     * every 16 ms tick while held; &msc at 20 notches/s reports a notch every
+     * 3-4 ticks (48-64 ms), hence the longer scroll gap. */
+    flask_mk_pointer: flask_mk_pointer {
+        compatible = "zmk,input-processor-flask-mousekeys";
+        #input-processor-cells = <0>;
+        ramp-ms = <MOUSE_RAMP_MS>;
+        exponent = <MOUSE_ACCEL_EXP>;
+        floor-pct = <MOUSE_FLOOR_PCT>;
+        gap-ms = <60>;
+    };
+
+    flask_mk_scroll: flask_mk_scroll {
+        compatible = "zmk,input-processor-flask-mousekeys";
+        #input-processor-cells = <0>;
+        scroll;
+        ramp-ms = <SCROLL_RAMP_MS>;
+        exponent = <SCROLL_ACCEL_EXP>;
+        floor-pct = <SCROLL_FLOOR_PCT>;
+        gap-ms = <120>;
+    };
+};
+
+/* Shared stacking speed holds (L_MOUSE thumbs). Three speed layers, each
+ * scales the pointer AND scroll the same way:
+ *   L_SCROLL_SLOW  /SPEED_STEP   (outer thumbs)
+ *   L_SCROLL_FAST  xSPEED_STEP   (middle thumbs)
+ *   L_AMP_DOWN     /AMP_STEP     (inner thumbs)
+ * Listener overrides are applied in order; for every override whose layer is
+ * active the processors run, then it STOPS unless process-next is set, and
+ * with process-next the result feeds the next override and finally the base
+ * processors (app/src/pointing/input_listener.c filter_with_input_config()).
+ * Every override sets process-next, so all held speed layers multiply, in any
+ * order: outer+inner = /15, middle+inner = x3/5, outer+middle = x1.
+ * Each speed layer is all &trans, so a thumb pressed while another is held
+ * falls through to its own L_MOUSE binding and joins the stack.
+ * zip_*_scaler takes mul/div as plain integers and tracks remainders, so
+ * small steps are not lost (app/src/pointing/input_processor_scaler.c).
+ * The base chain (flask_mk_*: live speed + ramp) runs after the overrides,
+ * so the thumb steps multiply on top of the app's speed. */
+&mmv_input_listener {
+    input-processors = <&flask_mk_pointer>;
+
+    slow {
+        layers = <L_SCROLL_SLOW>;
+        process-next;
+        input-processors = <&zip_xy_scaler 1 SPEED_STEP>;
+    };
+
+    fast {
+        layers = <L_SCROLL_FAST>;
+        process-next;
+        input-processors = <&zip_xy_scaler SPEED_STEP 1>;
+    };
+
+    slower {
+        layers = <L_AMP_DOWN>;
+        process-next;
+        input-processors = <&zip_xy_scaler 1 AMP_STEP>;
+    };
+};
+
+&msc_input_listener {
+    input-processors = <&flask_mk_scroll>;
+
+    slow {
+        layers = <L_SCROLL_SLOW>;
+        process-next;
+        input-processors = <&zip_scroll_scaler 1 SPEED_STEP>;
+    };
+
+    fast {
+        layers = <L_SCROLL_FAST>;
+        process-next;
+        input-processors = <&zip_scroll_scaler SPEED_STEP 1>;
+    };
+
+    slower {
+        layers = <L_AMP_DOWN>;
+        process-next;
+        input-processors = <&zip_scroll_scaler 1 AMP_STEP>;
+    };
+};
+
+/ {
+    /* Physical layout comes from the vendored shield (totem.dtsi). */
+
+    behaviors {
+        hm_l_ctrl: hm_l_ctrl {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_L_CTRL";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_R>;
+        };
+
+        hm_l_alt: hm_l_alt {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_L_ALT";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_R>;
+        };
+
+        hm_l_gui: hm_l_gui {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_L_GUI";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+            hold-trigger-key-positions = <KEYS_R>;
+            hold-trigger-on-release;
+        };
+
+        hm_l_shft: hm_l_shft {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_L_SHFT";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_R>;
+        };
+
+        ak_rti: ak_rti {
+            compatible = "zmk,behavior-adaptive-key";
+            label = "AK_RTI";
+            #binding-cells = <0>;
+            bindings = <&key_repeat>;
+
+            rti_a {
+                trigger-keys = <A>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp O>;
+            };
+
+            rti_b {
+                trigger-keys = <B>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp E &kp C &kp A &kp U &kp S &kp E>;
+            };
+
+            rti_e {
+                trigger-keys = <E>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp U>;
+            };
+
+            rti_g {
+                trigger-keys = <G>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp N &kp G>;
+            };
+
+            rti_h {
+                trigger-keys = <H>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp C &kp H>;
+            };
+
+            rti_i {
+                trigger-keys = <I>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp N &kp G>;
+            };
+
+            rti_j {
+                trigger-keys = <J>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp U &kp S &kp T>;
+            };
+
+            rti_k {
+                trigger-keys = <K>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp N &kp G>;
+            };
+
+            rti_l {
+                trigger-keys = <L>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp O &kp N &kp G>;
+            };
+
+            rti_m {
+                trigger-keys = <M>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp E &kp N &kp T>;
+            };
+
+            rti_n {
+                trigger-keys = <N>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp O &kp N>;
+            };
+
+            rti_o {
+                trigger-keys = <O>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp U &kp L &kp D>;
+            };
+
+            rti_p {
+                trigger-keys = <P>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp E &kp O &kp P &kp L &kp E>;
+            };
+
+            rti_q {
+                trigger-keys = <Q>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp U>;
+            };
+
+            rti_t {
+                trigger-keys = <T>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I &kp O &kp N>;
+            };
+
+            rti_u {
+                trigger-keys = <U>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp I>;
+            };
+
+            rti_v {
+                trigger-keys = <V>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp S>;
+            };
+
+            rti_y {
+                trigger-keys = <Y>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp O &kp U>;
+            };
+
+            rti_space {
+                trigger-keys = <SPACE>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp T &kp H &kp E>;
+            };
+
+            rti_sentence {
+                trigger-keys = <DOT QMARK EXCL>;
+                max-prior-idle-ms = <500>;
+                bindings = <&kp SPACE &sk LSHFT>;
+            };
+
+            /* Was BSPC -> &slk_wbspc / DEL -> &slk_wdel. Removed 2026-10-03:
+             * Super Delete presses the same slk keys, and fak + sd holding
+             * one at once left Backspace stuck. These two now equal the
+             * fallback (plain Key Repeat) and stay only as placeholders:
+             * fak_defaults seeds &fak rules by position (these are rules
+             * 22-23), so deleting them would shift ak_alt's rules 24-34
+             * onto indexes that may hold saved app edits. */
+            rti_bspc {
+                trigger-keys = <BSPC>;
+                bindings = <&key_repeat>;
+            };
+
+            rti_del {
+                trigger-keys = <DEL>;
+                bindings = <&key_repeat>;
+            };
+        };
+
+        /* Second adaptive key (urob/zmk-adaptive-key): the QMK Alt Repeat —
+         * taps the REVERSE companion of the last key (→ after ←, PgDn after
+         * PgUp, ⇧Tab after Tab, closing bracket after opening). No
+         * max-prior-idle: works whenever. Falls back to plain repeat. More
+         * of these can coexist (ak_rti = completions, ak_alt = reversals). */
+        ak_alt: ak_alt {
+            compatible = "zmk,behavior-adaptive-key";
+            label = "AK_ALT";
+            #binding-cells = <0>;
+            bindings = <&key_repeat>;
+
+            alt_left    { trigger-keys = <LEFT>;  bindings = <&kp RIGHT>; };
+            alt_right   { trigger-keys = <RIGHT>; bindings = <&kp LEFT>; };
+            alt_up      { trigger-keys = <UP>;    bindings = <&kp DOWN>; };
+            alt_down    { trigger-keys = <DOWN>;  bindings = <&kp UP>; };
+            alt_pgup    { trigger-keys = <PG_UP>; bindings = <&kp PG_DN>; };
+            alt_pgdn    { trigger-keys = <PG_DN>; bindings = <&kp PG_UP>; };
+            alt_home    { trigger-keys = <HOME>;  bindings = <&kp END>; };
+            alt_end     { trigger-keys = <END>;   bindings = <&kp HOME>; };
+            alt_tab     { trigger-keys = <TAB>;   bindings = <&kp LS(TAB)>; };
+            alt_lbkt    { trigger-keys = <LBKT>;  bindings = <&kp RBKT>; };
+            alt_rbkt    { trigger-keys = <RBKT>;  bindings = <&kp LBKT>; };
+        };
+
+        /* Smart num layer (urob/zmk-auto-layer): &num_word L_NUMBER latches
+         * the Number layer; digits and the continue-list (incl. the Number
+         * layer's keypad operators) keep it alive, anything else drops back. */
+        num_word: num_word {
+            compatible = "zmk,behavior-auto-layer";
+            #binding-cells = <1>;
+            display-name = "Num Word";
+            continue-list = <BSPC DEL DOT COMMA PLUS MINUS STAR FSLH EQUAL
+                             KP_DIVIDE KP_MULTIPLY KP_MINUS KP_PLUS KP_EQUAL>;
+            ignore-numbers;
+        };
+
+        /* App switcher (urob/zmk-tri-state): tap = mod+Tab and the mod STAYS
+         * HELD; more taps cycle; any non-ignored key press (or releasing the
+         * Navigation layer) drops the mod and commits. OS-aware since 2026-07-08:
+         * &swapper is a switch-layout-key wrapping two tri-states — ⌘ on mac,
+         * Alt on PC — following the same persisted &sw_layout OS_NEXT toggle
+         * as every slk_* key (ZMK has no host-OS auto-detection; zmk#2553).
+         * Ignored positions (SWAP_NAV) = Navigation's ⇧Tab/Up/Tab (7 8 9) and
+         * Enter/arrows (16-19) so the app grid can be navigated mid-swap.
+         * ⇧Tab (7) doubles as the reverse key: shift applies to whichever
+         * mod the swapper holds, so one reverse key serves both OSes. (The
+         * Imprint's separate reverse key on its number row has no room on
+         * 38 keys.) */
+        swapper_mac: swapper_mac {
+            compatible = "zmk,behavior-tri-state";
+            label = "SWAPPER_MAC";
+            #binding-cells = <0>;
+            bindings = <&kt LGUI>, <&kp TAB>, <&kt LGUI>;
+            ignored-key-positions = <SWAP_NAV>;
+        };
+
+        swapper_win: swapper_win {
+            compatible = "zmk,behavior-tri-state";
+            label = "SWAPPER_WIN";
+            #binding-cells = <0>;
+            bindings = <&kt LALT>, <&kp TAB>, <&kt LALT>;
+            ignored-key-positions = <SWAP_NAV>;
+        };
+
+        swapper: swapper {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "App Switcher (OS)";
+            #binding-cells = <0>;
+            bindings = <&swapper_win>, <&swapper_mac>;
+        };
+
+        as_ht: as_ht {
+            compatible = "zmk,behavior-hold-tap";
+            label = "AS_HT";
+            bindings = <&shift>, <&kp>;
+
+            #binding-cells = <2>;
+            tapping-term-ms = <200>;
+            flavor = "tap-preferred";
+        };
+
+        bdel: bdel {
+            compatible = "zmk,behavior-mod-morph";
+            display-name = "Backspace/Delete";
+            label = "BDEL";
+            bindings = <&kp BSPC>, <&kp DEL>;
+
+            #binding-cells = <0>;
+            mods = <(MOD_LSFT|MOD_RSFT)>;
+            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
+        };
+
+        /* Super Delete (&super_del): eager. Tap 1 = Backspace the instant it is
+         * pressed; tap 2 within 400 ms (press to press) = word delete; tap 3+
+         * = line delete. Holding any step holds that key (OS auto-repeat).
+         * Shift (masked out) morphs the whole chain to forward delete.
+         * Other held mods ride through (keep-mods, as bdel). A pause over
+         * 400 ms starts the chain over. Word/line are OS-aware (slk_*):
+         * Mac Opt+BSPC / Cmd+BSPC, Windows Ctrl+BSPC for both (no Cmd).
+         * Each step is an adaptive key (urob/zmk-adaptive-key) that looks at
+         * the last keycode sent: a word/line backspace -> line delete, a
+         * plain BSPC -> word delete. Triggers are checked in order and the
+         * mod-carrying one must come first (a BSPC trigger also matches
+         * Opt+BSPC, since matching is non-strict). Difference from the old
+         * tap-dance: tap 2 sends BSPC then word delete, not a single word
+         * delete, so it differs only after a one-letter word. Outer node is
+         * core mod-morph (ships Studio metadata), name kept so the Studio
+         * binding survives. */
+        sd_bspc: sd_bspc {
+            compatible = "zmk,behavior-adaptive-key";
+            label = "SD_BSPC";
+            #binding-cells = <0>;
+            bindings = <&kp BSPC>;
+
+            sd_bspc_line {
+                trigger-keys = <LG(BSPC) LA(BSPC) LC(BSPC)>;
+                max-prior-idle-ms = <400>;
+                bindings = <&slk_lbspc>;
+            };
+
+            sd_bspc_word {
+                trigger-keys = <BSPC>;
+                max-prior-idle-ms = <400>;
+                bindings = <&slk_wbspc>;
+            };
+        };
+
+        sd_del: sd_del {
+            compatible = "zmk,behavior-adaptive-key";
+            label = "SD_DEL";
+            #binding-cells = <0>;
+            bindings = <&kp DEL>;
+
+            sd_del_line {
+                trigger-keys = <LG(DEL) LA(DEL) LC(DEL)>;
+                max-prior-idle-ms = <400>;
+                bindings = <&slk_ldel>;
+            };
+
+            sd_del_word {
+                trigger-keys = <DEL>;
+                max-prior-idle-ms = <400>;
+                bindings = <&slk_wdel>;
+            };
+        };
+
+        super_del: super_del {
+            compatible = "zmk,behavior-mod-morph";
+            #binding-cells = <0>;
+            display-name = "Super Delete";
+            bindings = <&sd_bspc>, <&sd_del>;
+            mods = <(MOD_LSFT|MOD_RSFT)>;
+            keep-mods = <(MOD_LCTL|MOD_LALT|MOD_RCTL|MOD_LGUI|MOD_RALT|MOD_RGUI)>;
+        };
+
+        th_r_rep: th_r_rep {
+            compatible = "zmk,behavior-hold-tap";
+            label = "TH_R_REP";
+            bindings = <&kp>, <&key_repeat>;
+
+            #binding-cells = <2>;
+            tapping-term-ms = <180>;
+            flavor = "hold-preferred";
+            quick-tap-ms = <150>;
+            require-prior-idle-ms = <165>;
+            hold-trigger-key-positions = <KEYS_L>;
+        };
+
+        hm_r_ctrl: hm_r_ctrl {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_R_CTRL";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_L>;
+        };
+
+        hm_r_gui: hm_r_gui {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_R_GUI";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_L>;
+        };
+
+        hm_r_shift: hm_r_shift {
+            compatible = "zmk,behavior-hold-tap";
+            label = "HM_R_SHIFT";
+            #binding-cells = <2>;
+            bindings = <&kp>, <&kp>;
+
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+            hold-trigger-on-release;
+            hold-trigger-key-positions = <KEYS_L>;
+        };
+
+        /* Live-timing hold-taps (zmk-flask-modules flask_holdtap, Flask
+         * channel 0x2A, proto v17). Core hold-tap semantics, but term /
+         * flavor / quick-tap / prior-idle come from a runtime slot PER KEY
+         * POSITION, so the configurator's per-key slider retunes them
+         * without a reflash. Positional rule compiled per node (the
+         * boot rule, "mode 0" of value 0x53, which can override it per
+         * slot): fht_l = left-hand keys, fht_r = right-hand keys. The
+         * first other key counts at its PRESS (no
+         * hold-trigger-on-release): a same-hand plain key pressed while
+         * the hold-tap is undecided forces TAP even if the term runs out
+         * first; an opposite-hand key or a same-hand fht key (thumb-mod
+         * chords) allows HOLD (FHT_TRIG_L / FHT_TRIG_R). fht = no positional
+         * rule (for Studio assignment anywhere). Boot timing per
+         * position: flask_holdtap_defaults below; the hm_* nodes above
+         * are the compiled originals, kept for reverting from Studio. */
+        fht_l: fht_l {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap L (live)";
+            bindings = <&kp>, <&kp>;
+            hold-trigger-key-positions = <FHT_TRIG_L>;
+        };
+
+        fht_r: fht_r {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap R (live)";
+            bindings = <&kp>, <&kp>;
+            hold-trigger-key-positions = <FHT_TRIG_R>;
+        };
+
+        fht: fht {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap (live)";
+            bindings = <&kp>, <&kp>;
+        };
+
+        /* Modifier hold + ADAPTIVE tap: &fhta_r <mods> <set> (set = the
+         * &fak index 0-15, passed through as param2). Same positional rules
+         * and per-key-position timing as fht_l / fht_r / fht. Not
+         * retro-shift shaped (tap is &fak, not &kp), so autoshift skips it. */
+        fhta_l: fhta_l {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap L / Adaptive";
+            bindings = <&kp>, <&fak>;
+            hold-trigger-key-positions = <FHT_TRIG_L>;
+        };
+
+        fhta_r: fhta_r {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap R / Adaptive";
+            bindings = <&kp>, <&fak>;
+            hold-trigger-key-positions = <FHT_TRIG_R>;
+        };
+
+        fhta: fhta {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Hold-Tap / Adaptive";
+            bindings = <&kp>, <&fak>;
+        };
+
+        /* Every hold-tap the keymap binds runs on the flask engine: two
+         * hold-tap engines side by side lose keys (a core hold-tap replays
+         * past the flask listener). These replace the bound core &lt / &mt /
+         * as_ht and read VIRTUAL slots (38+) instead of a key position, so
+         * a combo never borrows a thumb's timing. Defaults = the core values
+         * they replace (flask_holdtap_defaults below). The core nodes stay
+         * defined, unbound, for Studio. flt_ctl = base middle thumbs 33 / 36
+         * (&flt_ctl L_NAV R / SPACE), both on slot 38. */
+        flt_ctl: flt_ctl {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Layer-Tap Navigation (live)";
+            bindings = <&mo>, <&kp>;
+            slot = <38>;
+        };
+
+        flt_fn: flt_fn {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Layer-Tap Function (live)";
+            bindings = <&mo>, <&kp>;
+            slot = <39>;
+        };
+
+        fmt_copy: fmt_copy {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap copy/cut combo (live)";
+            bindings = <&kp>, <&kp>;
+            slot = <40>;
+        };
+
+        fmt_undo: fmt_undo {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap undo/redo combo (live)";
+            bindings = <&kp>, <&kp>;
+            slot = <41>;
+        };
+
+        fmt_nav: fmt_nav {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap Fn arrows (live)";
+            bindings = <&kp>, <&kp>;
+            slot = <42>;
+        };
+
+        fas_ht: fas_ht {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Autoshift (live)";
+            bindings = <&shift>, <&kp>;
+            slot = <43>;
+        };
+
+        /* Tap-leaning layer hold-taps, Studio-assignable: &ht_sdel <layer> 0
+         * and &ht_rep <layer> 0 (param2 is a dummy; the tap binding takes
+         * no cell). Flask engine, virtual slots 44 / 45: 280 ms term,
+         * tap-preferred, quick-tap 400 ms, prior-idle 150 ms. First press
+         * held past 280 ms = layer; a tap = Super Delete / Repeat; a press
+         * within 400 ms of the last press of the same key is a forced tap
+         * on press (word / line delete, holdable for OS repeat), never a
+         * layer. A press within 150 ms of a typed key is a tap. */
+        ht_sdel: ht_sdel {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Super Delete / Layer";
+            bindings = <&mo>, <&super_del>;
+            slot = <44>;
+        };
+
+        /* Same timing as ht_sdel, tap = Repeat (virtual slot 45). */
+        ht_rep: ht_rep {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Repeat / Layer";
+            bindings = <&mo>, <&key_repeat>;
+            slot = <45>;
+        };
+
+        /* Same timing as ht_sdel, tap = runtime adaptive key (virtual slot
+         * 47). &fak takes one cell (the set index), so Studio usage is
+         * &ht_fak <layer> 0: param2 is passed through to &fak as the set. */
+        ht_fak: ht_fak {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Adaptive Key / Layer";
+            bindings = <&mo>, <&fak>;
+            slot = <47>;
+        };
+
+        /* Mouse layer key: tap = toggle L_MOUSE, hold = momentary L_MOUSE
+         * (&ht_mouse L_MOUSE L_MOUSE). Flask engine, virtual slot 46:
+         * balanced, 200 ms term, no quick-tap, no prior-idle. */
+        ht_mouse: ht_mouse {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mouse Layer";
+            bindings = <&mo>, <&tog>;
+            slot = <46>;
+        };
+
+        /* Mouse-layer speed thumbs: hold = speed layer, tap = the key that
+         * thumb taps on Base (F18 / R / Super Delete | Repeat / Space /
+         * Adaptive Key), so the pinky never has to relearn Space. All four
+         * share virtual slot 48: hold-preferred, 200 ms term, quick-tap 150,
+         * prior-idle 0. Any other key pressed while the thumb is down = hold
+         * at once (hold a speed thumb, press move/scroll, the speed applies
+         * immediately); a lone tap = the tap key. Usage: &mlt <layer> <key>,
+         * &msdel / &mrep / &mfak <layer> 0 (param2 is a dummy; &mfak passes
+         * it to &fak as the set). */
+        mlt: mlt {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mouse Layer-Tap";
+            bindings = <&mo>, <&kp>;
+            slot = <48>;
+        };
+
+        msdel: msdel {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mouse Hold / Super Delete";
+            bindings = <&mo>, <&super_del>;
+            slot = <48>;
+        };
+
+        mrep: mrep {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mouse Hold / Repeat";
+            bindings = <&mo>, <&key_repeat>;
+            slot = <48>;
+        };
+
+        mfak: mfak {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mouse Hold / Adaptive Key";
+            bindings = <&mo>, <&fak>;
+            slot = <48>;
+        };
+
+        /* Leader / Shift: tap = Leader, hold = Shift (&lsft LSHFT 0; param2
+         * is a dummy, &leader takes no cell). Virtual slot 49: balanced,
+         * 200 ms term, quick-tap 150, prior-idle 150. Not bound anywhere;
+         * assign from Totem-Flask. */
+        lsft: lsft {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Leader / Shift";
+            bindings = <&kp>, <&leader>;
+            slot = <49>;
+        };
+
+        /* Mouse-layer Neru keys with a modifier on hold (so Cmd/Shift/etc.
+         * + click still works on L_MOUSE): tap = the Neru action, hold =
+         * the modifier. Both share virtual slot 50: balanced, 200 ms term,
+         * quick-tap 150, prior-idle 0. The hold side is a plain &kp, so it
+         * never runs the macro's &to L_BASE; only a tap does. Usage:
+         * &nmod_h LCTRL 0 (neru_hints takes no cell, param2 is a dummy),
+         * &nmod_m LALT G (param2 reaches neru_m's one macro param). */
+        nmod_h: nmod_h {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod / Neru Hints";
+            bindings = <&kp>, <&neru_hints>;
+            slot = <50>;
+        };
+
+        nmod_m: nmod_m {
+            compatible = "zmk,behavior-flask-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod / Neru Menu Key";
+            bindings = <&kp>, <&neru_m>;
+            slot = <50>;
+        };
+
+        sl_mo: sl_mo {
+            compatible = "zmk,behavior-hold-tap";
+            label = "SL_MO";
+            bindings = <&mo>, <&sl>;
+
+            #binding-cells = <2>;
+            tapping-term-ms = <200>;
+            quick-tap-ms = <150>;
+            flavor = "balanced";
+        };
+
+        leader: leader {
+            compatible = "zmk,behavior-leader-key";
+            label = "LEADER";
+            #binding-cells = <0>;
+
+            email {
+                sequence = <E M>;
+                bindings = <&email_um>;
+            };
+
+            to_usb {
+                sequence = <U>;
+                bindings = <&out OUT_USB>;
+            };
+
+            to_ble {
+                sequence = <B>;
+                bindings = <&out OUT_BLE>;
+            };
+        };
+
+        /* --- OS-aware shortcuts (zmk-switch-layout): index 0 = PC, 1 = mac.
+         * Persisted in settings; swap with &sw_layout OS_NEXT. --- */
+        sw_layout: sw_layout {
+            compatible = "zmk-switch-layout,behavior-switch-layout-mode";
+            display-name = "OS Layout Toggle";
+            #binding-cells = <1>;
+            layout-count = <2>;
+            /* Only applies on a board with no saved setting (after a settings
+             * wipe); the persisted choice wins otherwise. AJ is on Mac. */
+            default-layout = <OS_MAC>;
+        };
+
+        slk_copycut: slk_copycut {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Copy/Cut (OS)";
+            #binding-cells = <0>;
+            bindings = <&fmt_copy LC(X) LC(C)>, <&fmt_copy LG(X) LG(C)>;
+        };
+
+        slk_paste: slk_paste {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Paste (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(V)>, <&kp LG(V)>;
+        };
+
+        slk_undoredo: slk_undoredo {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Undo/Redo (OS)";
+            #binding-cells = <0>;
+            bindings = <&fmt_undo LC(Y) LC(Z)>, <&fmt_undo LG(LS(Z)) LG(Z)>;
+        };
+
+        slk_selall: slk_selall {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Select All (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(A)>, <&kp LG(A)>;
+        };
+
+        slk_close: slk_close {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Close Tab (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(W)>, <&kp LG(W)>;
+        };
+
+        slk_ntab: slk_ntab {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "New Tab (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(T)>, <&kp LG(T)>;
+        };
+
+        slk_wbspc: slk_wbspc {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Word Backspace (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(BSPC)>, <&kp LA(BSPC)>;
+        };
+
+        slk_wdel: slk_wdel {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Word Delete (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(DEL)>, <&kp LA(DEL)>;
+        };
+
+        /* Line delete for Super Delete: Cmd on mac, Ctrl (word delete) on PC. */
+        slk_lbspc: slk_lbspc {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Line Backspace (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(BSPC)>, <&kp LG(BSPC)>;
+        };
+
+        slk_ldel: slk_ldel {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Line Delete (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(DEL)>, <&kp LG(DEL)>;
+        };
+
+        slk_home_down: slk_home_down {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Home/Down (OS)";
+            #binding-cells = <0>;
+            bindings = <&fmt_nav HOME DOWN_ARROW>, <&fmt_nav LG(LEFT) DOWN_ARROW>;
+        };
+
+        slk_end_up: slk_end_up {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "End/Up (OS)";
+            #binding-cells = <0>;
+            bindings = <&fmt_nav END UP>, <&fmt_nav LG(RIGHT) UP>;
+        };
+
+        slk_wleft: slk_wleft {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Word Left (OS)";
+            #binding-cells = <0>;
+            bindings = <&fmt_nav LC(LEFT) LEFT_ARROW>, <&fmt_nav LA(LEFT) LEFT_ARROW>;
+        };
+
+        slk_wright: slk_wright {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Word Right (OS)";
+            #binding-cells = <0>;
+            bindings = <&fmt_nav LC(RIGHT) RIGHT>, <&fmt_nav LA(RIGHT) RIGHT>;
+        };
+
+        /* MacBook bottom-left key: Globe/Fn on mac, Ctrl+Alt+Win held on PC.
+         * Not Studio-assignable itself; the app assigns &globe_os below. */
+        slk_globe: slk_globe {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Globe/Fn (OS)";
+            #binding-cells = <0>;
+            bindings = <&kp LC(LA(LGUI))>, <&kp GLOBE>;
+        };
+
+        /* Runtime macros (flask_macros, channel 0x25): &fmac <slot> plays a
+         * live-editable macro slot (32 slots x 32 steps by default), edited from the Flask
+         * app. Unbound by default — assign from Studio / the app's editor;
+         * the node existing is what compiles the behavior in and puts it on
+         * Studio's behavior list (slot range rides parameter metadata). */
+        /* Runtime leader (flask_leader, channel 0x19): &fled opens a
+         * capture matched against the app-edited sequence table. Unbound
+         * by default — assign from Studio / the app. urob's &leader (the
+         * compiled email/USB/BLE sequences) stays on its own key. */
+        fled: fled {
+            compatible = "zmk,behavior-flask-leader";
+            #binding-cells = <0>;
+            display-name = "Flask Leader";
+        };
+
+        fmac: fmac {
+            compatible = "zmk,behavior-flask-macros";
+            #binding-cells = <1>;
+            display-name = "Flask Macro";
+        };
+
+        /* Runtime tap dance (flask_tapdance, channel 0x28, v14): &ftd <slot>
+         * runs a live-editable dance — per-slot tapping term + one typed
+         * output per tap count, all from the app's wizard. Unbound by
+         * default — assign from Studio / the app; the node existing is what
+         * compiles the behavior in (slot range rides parameter metadata). */
+        ftd: ftd {
+            compatible = "zmk,behavior-flask-tapdance";
+            #binding-cells = <1>;
+            display-name = "Tap Dance";
+        };
+
+        /* Runtime adaptive key (flask_adaptive, channel 0x2B, v18): &fak <set>
+         * fires an output chosen by the last key typed — the same idea as
+         * ak_rti / ak_alt above, but every rule is editable from the app.
+         * Sets 0 and 1 are seeded from ak_rti / ak_alt by fak_defaults below;
+         * sets 2-3 start empty. Unbound by default — assign from Studio / the
+         * app (Keys > Run > Adaptive key). ak_rti and ak_alt stay compiled
+         * and bound until the &fak keys replace them. */
+        fak: fak {
+            compatible = "zmk,behavior-flask-adaptive";
+            #binding-cells = <1>;
+            display-name = "Adaptive Key";
+        };
+
+        /* Composer tap-hold timing variants (v14, AJ's "behavior
+         * modification settings" ask). Core hold-tap params are const DT —
+         * not runtime-tunable — so the app's Tap-hold section offers a
+         * TIMING choice among these precompiled instances instead: &mt
+         * stays the core 200 ms (quick-tap 150 via the &mt override up
+         * top), fast resolves at 150, slow at 300. Same two-param shape
+         * Studio already renders for &mt. */
+        mt_fast: mt_fast {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap (fast 150)";
+            flavor = "tap-preferred";
+            tapping-term-ms = <150>;
+            quick-tap-ms = <125>;
+            bindings = <&kp>, <&kp>;
+        };
+
+        mt_slow: mt_slow {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Mod-Tap (slow 300)";
+            flavor = "tap-preferred";
+            tapping-term-ms = <300>;
+            quick-tap-ms = <175>;
+            bindings = <&kp>, <&kp>;
+        };
+
+        lt_fast: lt_fast {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Layer-Tap (fast 150)";
+            flavor = "tap-preferred";
+            tapping-term-ms = <150>;
+            quick-tap-ms = <125>;
+            bindings = <&mo>, <&kp>;
+        };
+
+        lt_slow: lt_slow {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Layer-Tap (slow 300)";
+            flavor = "tap-preferred";
+            tapping-term-ms = <300>;
+            quick-tap-ms = <175>;
+            bindings = <&mo>, <&kp>;
+        };
+
+        /* --- Smart one-shot/hold (2026-07-10, AJ's ask) ---
+         * Tri-state modifier/layer keys by composition: a hold-tap whose
+         * HOLD binding is a sticky behavior.
+         *   tap                                → the tap binding (any usage)
+         *   hold past tapping-term, release
+         *     with nothing else pressed        → ONE-SHOT (next key gets it)
+         *   keep holding and type              → plain held modifier/layer
+         * The one-shot window is skm's release-after-ms (1.5 s). Unbound by
+         * default — Studio-assignable two-param behaviors, the same shape
+         * Studio renders for &mt / &lt (param1 = mod / layer, param2 = tap
+         * usage). */
+        skm: skm {
+            compatible = "zmk,behavior-sticky-key";
+            #binding-cells = <1>;
+            display-name = "Sticky Mod (smart)";
+            release-after-ms = <1500>;
+            bindings = <&kp>;
+            ignore-modifiers; /* chain ⇧ then ⌘ as stacked one-shots */
+        };
+
+        smart_mod: smart_mod {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Smart Mod";
+            flavor = "balanced";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <175>;
+            bindings = <&skm>, <&kp>;
+        };
+
+        /* Smart Layer, reworked to AJ's bench spec (2026-07-11): the param
+         * is a LAYER on both sides —
+         *   tap                  → &tog latches the layer (tap again on a
+         *                          position that stays &trans to unlatch)
+         *   brief hold + release → one-shot layer (next key), via &skl
+         *   sustained hold       → layer while held
+         * &skl is a dedicated NON-lazy sticky layer: the stock &sl carried
+         * urob's `lazy` flag, which defers activation until the next key —
+         * that's why the HUD didn't follow. Bind as &smart_layer L L (the
+         * hold-tap needs the layer in both params; the app's composer fills
+         * both from one picker). */
+        skl: skl {
+            compatible = "zmk,behavior-sticky-key";
+            #binding-cells = <1>;
+            display-name = "Sticky Layer (smart)";
+            release-after-ms = <1500>;
+            bindings = <&mo>;
+            ignore-modifiers;
+        };
+
+        smart_layer: smart_layer {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            display-name = "Smart Layer";
+            flavor = "balanced";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <175>;
+            bindings = <&skl>, <&tog>;
+        };
+    };
+
+    /* Boot rules for &fak (flask_adaptive, channel 0x2B): set 0 <- ak_rti
+     * (fallback + 24 rules, rules 0-23), set 1 <- ak_alt (fallback + 11 rules,
+     * rules 24-34), packed in node/child/trigger order. ak_rti and ak_alt are
+     * still real behaviors; this node only copies their tables into the
+     * runtime pool. App edits and deletions saved over channel 0x2B win on
+     * boot. */
+    fak_defaults {
+        compatible = "flask,adaptive-defaults";
+        sets = <&ak_rti &ak_alt>;
+    };
+
+    /* Combos = RUNTIME slots (flask_combos, channel 0x24) seeded from this
+     * node: each child seeds one slot in declaration order (child i = slot
+     * i); app edits and deletions persist and win on boot. These 8 mirror
+     * AJ's app combos as of 2026-10-03 (slots 0-7), so a settings reset
+     * restores them. All layers, global timeout and prior-idle. The two
+     * thumb combos in slots 8-9 were temporary and are not seeded. */
+    flask_combos_defaults {
+        compatible = "flask,combos-defaults";
+
+        ent {
+            bindings = <&kp ENTER>;
+            key-positions = <3 13>;
+        };
+
+        tab {
+            bindings = <&kp TAB>;
+            key-positions = <2 12>;
+        };
+
+        rent {
+            bindings = <&kp ENTER>;
+            key-positions = <16 6>;
+        };
+
+        lbtab {
+            bindings = <&kp LS(TAB)>;
+            key-positions = <1 11>;
+        };
+
+        rtab {
+            bindings = <&kp TAB>;
+            key-positions = <7 17>;
+        };
+
+        rbtab {
+            bindings = <&kp LS(TAB)>;
+            key-positions = <8 18>;
+        };
+
+        lesc {
+            bindings = <&kp ESC>;
+            key-positions = <0 10>;
+        };
+
+        resc {
+            bindings = <&kp ESC>;
+            key-positions = <9 19>;
+        };
+    };
+
+    macros {
+        shift: shift {
+            compatible = "zmk,behavior-macro-one-param";
+            label = "SHIFT";
+            #binding-cells = <1>;
+            bindings =
+                <&macro_press>,
+                <&kp LSHFT>,
+                <&macro_tap>,
+                <&macro_param_1to1 &kp MACRO_PLACEHOLDER>,
+                <&macro_release>,
+                <&kp LSHFT>;
+        };
+
+        as: as {
+            compatible = "zmk,behavior-macro-one-param";
+            label = "AS";
+            #binding-cells = <1>;
+            // No inter-step delay: a delayed &fas_ht press could queue behind
+            // a bottom-row hold-tap pressed in the gap ("1T2" on fast rolls).
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings =
+                <&macro_press>,
+                <&macro_param_1to1 &macro_param_1to2 &fas_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>,
+                <&macro_pause_for_release>,
+                <&macro_release>,
+                <&macro_param_1to1 &macro_param_1to2 &fas_ht MACRO_PLACEHOLDER MACRO_PLACEHOLDER>;
+        };
+
+        /* Neru Mouse-layer chords (Neru matches modifiers exactly): the
+         * laptop chord plus the missing one of Alt/Shift, hints =
+         * Cmd+Opt+Shift+Space, menu = Ctrl+Opt+Shift+Space (Neru mode
+         * neru_mouse). Neru binds them to the laptop actions and, when the
+         * mode ends (click, Return, Escape), runs ~/.local/bin/totem-layer
+         * mouse: Flask SET meta to-layer 0x05 puts the board back on
+         * L_MOUSE. The laptop chords (Cmd+Shift+Space, Ctrl+Opt+Space) never
+         * switch layers. Only L_MOUSE uses these macros.
+         * Timing: tap-ms 20 (chord held 20 ms so macOS registers it),
+         * wait-ms 15 between steps; neru_m/neru_ms wait 60 ms after the
+         * menu chord before the letter. */
+        neru_hints: neru_hints {
+            compatible = "zmk,behavior-macro";
+            label = "NERU_HINTS";
+            display-name = "Neru Hints";
+            #binding-cells = <0>;
+            wait-ms = <15>;
+            tap-ms = <20>;
+            bindings = <&kp LG(LA(LS(SPACE)))>, <&to L_BASE>;
+        };
+
+        neru_menu: neru_menu {
+            compatible = "zmk,behavior-macro";
+            label = "NERU_MENU";
+            display-name = "Neru Menu";
+            #binding-cells = <0>;
+            wait-ms = <15>;
+            tap-ms = <20>;
+            bindings = <&kp LC(LA(LS(SPACE)))>, <&to L_BASE>;
+        };
+
+        neru_m: neru_m {
+            compatible = "zmk,behavior-macro-one-param";
+            label = "NERU_M";
+            display-name = "Neru Menu + Key (to base)";
+            #binding-cells = <1>;
+            wait-ms = <15>;
+            tap-ms = <20>;
+            bindings =
+                <&macro_tap>,
+                <&kp LC(LA(LS(SPACE)))>,
+                <&macro_wait_time 60>,
+                <&macro_tap>,
+                <&macro_param_1to1 &kp MACRO_PLACEHOLDER>,
+                <&to L_BASE>;
+        };
+
+        neru_ms: neru_ms {
+            compatible = "zmk,behavior-macro-one-param";
+            label = "NERU_MS";
+            display-name = "Neru Menu + Key (stay)";
+            #binding-cells = <1>;
+            wait-ms = <15>;
+            tap-ms = <20>;
+            bindings =
+                <&macro_tap>,
+                <&kp LC(LA(LS(SPACE)))>,
+                <&macro_wait_time 60>,
+                <&macro_tap>,
+                <&macro_param_1to1 &kp MACRO_PLACEHOLDER>;
+        };
+
+        qu: qu {
+            compatible = "zmk,behavior-macro";
+            label = "QU";
+            #binding-cells = <0>;
+            bindings = <&kp Q &kp U>;
+        };
+
+        email_um: email_um {
+            compatible = "zmk,behavior-macro";
+            label = "EMAIL_UM";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&kp C &kp H &kp O &kp W &kp D &kp N1 &kp N9 &kp N8 &kp AT &kp U &kp M &kp N &kp DOT &kp E &kp D &kp U>;
+        };
+
+        /* Mouse move/scroll as param-less macros. ZMK Studio cannot write
+         * &mmv/&msc (behavior_input_two_axis has no ZMK_BEHAVIOR_METADATA at
+         * 484a054, so Studio returns INVALID_PARAMETERS), but it can assign
+         * these. Press on key down, release on key up, so a held key keeps
+         * moving with the same speed/ramp/listener scaling as raw &mmv/&msc.
+         * Diagonals add the X and Y fields like pointing.h MOVE(x, y).
+         * Node names and display-names are matched by the Flask app. */
+        /* Globe/Fn (OS) as a param-less macro so Studio and the app can assign
+         * it. Held for as long as the key is held, like a real modifier. */
+        globe_os: globe_os {
+            compatible = "zmk,behavior-macro";
+            display-name = "Globe / Fn (OS)";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &slk_globe>, <&macro_pause_for_release>, <&macro_release &slk_globe>;
+        };
+
+        mm_up: mm_up {
+            compatible = "zmk,behavior-macro";
+            display-name = "Mouse ↑";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mmv MOVE_UP>, <&macro_pause_for_release>, <&macro_release &mmv MOVE_UP>;
+        };
+        mm_down: mm_down {
+            compatible = "zmk,behavior-macro";
+            display-name = "Mouse ↓";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mmv MOVE_DOWN>, <&macro_pause_for_release>, <&macro_release &mmv MOVE_DOWN>;
+        };
+        mm_left: mm_left {
+            compatible = "zmk,behavior-macro";
+            display-name = "Mouse ←";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mmv MOVE_LEFT>, <&macro_pause_for_release>, <&macro_release &mmv MOVE_LEFT>;
+        };
+        mm_right: mm_right {
+            compatible = "zmk,behavior-macro";
+            display-name = "Mouse →";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mmv MOVE_RIGHT>, <&macro_pause_for_release>, <&macro_release &mmv MOVE_RIGHT>;
+        };
+        mm_ul: mm_ul {
+            compatible = "zmk,behavior-macro";
+            display-name = "Mouse ↖";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mmv (MOVE_UP + MOVE_LEFT)>, <&macro_pause_for_release>, <&macro_release &mmv (MOVE_UP + MOVE_LEFT)>;
+        };
+        mm_ur: mm_ur {
+            compatible = "zmk,behavior-macro";
+            display-name = "Mouse ↗";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mmv (MOVE_UP + MOVE_RIGHT)>, <&macro_pause_for_release>, <&macro_release &mmv (MOVE_UP + MOVE_RIGHT)>;
+        };
+        mm_dl: mm_dl {
+            compatible = "zmk,behavior-macro";
+            display-name = "Mouse ↙";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mmv (MOVE_DOWN + MOVE_LEFT)>, <&macro_pause_for_release>, <&macro_release &mmv (MOVE_DOWN + MOVE_LEFT)>;
+        };
+        mm_dr: mm_dr {
+            compatible = "zmk,behavior-macro";
+            display-name = "Mouse ↘";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mmv (MOVE_DOWN + MOVE_RIGHT)>, <&macro_pause_for_release>, <&macro_release &mmv (MOVE_DOWN + MOVE_RIGHT)>;
+        };
+        sc_up: sc_up {
+            compatible = "zmk,behavior-macro";
+            display-name = "Scroll ↑";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &msc SCRL_UP>, <&macro_pause_for_release>, <&macro_release &msc SCRL_UP>;
+        };
+        sc_down: sc_down {
+            compatible = "zmk,behavior-macro";
+            display-name = "Scroll ↓";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &msc SCRL_DOWN>, <&macro_pause_for_release>, <&macro_release &msc SCRL_DOWN>;
+        };
+        sc_left: sc_left {
+            compatible = "zmk,behavior-macro";
+            display-name = "Scroll ←";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &msc SCRL_LEFT>, <&macro_pause_for_release>, <&macro_release &msc SCRL_LEFT>;
+        };
+        sc_right: sc_right {
+            compatible = "zmk,behavior-macro";
+            display-name = "Scroll →";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &msc SCRL_RIGHT>, <&macro_pause_for_release>, <&macro_release &msc SCRL_RIGHT>;
+        };
+    };
+
+    /* Boot timing for the flask_holdtap slots (0-37 = key positions,
+     * 38-50 = virtual slots), key slots seeded from the hm_* nodes these
+     * keys used before (280 / quick-tap 175 / prior-idle 150; GUI keys
+     * tap-preferred, the rest balanced). Unlisted slots boot at 200 /
+     * balanced / 0 / 0. tapping-term-ms defaults to 200 here. App edits saved
+     * over channel 0x2A win on boot; a slot reset returns here. */
+    flask_holdtap_defaults {
+        compatible = "flask,holdtap-defaults";
+
+        home_mods {
+            key-positions = <20 31 33 34 35 36>;
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+        };
+
+        gui_mods {
+            key-positions = <32 37>;
+            tapping-term-ms = <280>;
+            quick-tap-ms = <175>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        /* Virtual slots (a node's `slot`), seeded with the exact values of
+         * the core behaviors they replace: &lt = 200 tap-preferred; &mt =
+         * 200 tap-preferred quick-tap 150 (the &mt override up top);
+         * as_ht = 200 tap-preferred. */
+        v_nav_lt {
+            key-positions = <38>;
+            display-name = "Navigation layer-tap (flt_ctl)";
+            flavor = "tap-preferred";
+        };
+
+        v_fn_combo {
+            key-positions = <39>;
+            display-name = "Function layer-tap (flt_fn)";
+            flavor = "tap-preferred";
+        };
+
+        v_copy_combo {
+            key-positions = <40>;
+            display-name = "Copy/cut combo (11+12)";
+            quick-tap-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        v_undo_combo {
+            key-positions = <41>;
+            display-name = "Undo/redo combo (10+11)";
+            quick-tap-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        v_fn_arrows {
+            key-positions = <42>;
+            display-name = "Fn arrows (Fn 6-9)";
+            quick-tap-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        v_autoshift {
+            key-positions = <43>;
+            display-name = "Autoshift digits";
+            flavor = "tap-preferred";
+        };
+
+        v_sdel_layer {
+            key-positions = <44>;
+            display-name = "Super Delete / Layer";
+            tapping-term-ms = <280>;
+            quick-tap-ms = <400>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        v_rep_layer {
+            key-positions = <45>;
+            display-name = "Repeat / Layer";
+            tapping-term-ms = <280>;
+            quick-tap-ms = <400>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        v_mouse_layer {
+            key-positions = <46>;
+            display-name = "Mouse Layer";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <0>;
+            require-prior-idle-ms = <0>;
+            flavor = "balanced";
+        };
+
+        v_fak_layer {
+            key-positions = <47>;
+            display-name = "Adaptive Key / Layer";
+            tapping-term-ms = <280>;
+            quick-tap-ms = <400>;
+            require-prior-idle-ms = <150>;
+            flavor = "tap-preferred";
+        };
+
+        /* Mouse speed thumbs (mlt / msdel / mrep / mfak share this slot). */
+        v_mouse_speed {
+            key-positions = <48>;
+            display-name = "Mouse speed thumbs";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <150>;
+            require-prior-idle-ms = <0>;
+            flavor = "hold-preferred";
+        };
+
+        v_mouse_neru_mod {
+            key-positions = <50>;
+            display-name = "Mouse Neru mod-taps";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <150>;
+            require-prior-idle-ms = <0>;
+            flavor = "balanced";
+        };
+
+        v_leader_shift {
+            key-positions = <49>;
+            display-name = "Leader / Shift";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <150>;
+            require-prior-idle-ms = <150>;
+            flavor = "balanced";
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        /* Mirrors the keymap on AJ's board (Studio RPC dump, 2026-10-03):
+         * custom alpha base. Thumbs, left: &flt_fn Function (tap F18), &flt_ctl
+         * Navigation (R), &ht_sdel Number (tap Super Delete); right:
+         * &ht_rep Number (tap Repeat), &flt_ctl Navigation (SPACE), &ht_fak
+         * Function (tap Adaptive Key). Numpad = &num_word on Navigation. */
+        base {
+            display-name = "Base";
+            bindings = <
+                                    &kp X           &kp V          &kp L                       &kp K        &kp Q                &none               &kp Y            &kp O             &kp U          &kp SQT
+                                    &fht_l LCTRL N  &fht_l LALT S  &fht_l LGUI H               &kp T        &kp M                &kp P               &kp C            &fht_r RGUI A     &fht_r RALT E  &fht_r RCTRL I
+            &fht_l LSHFT B          &kp F           &kp G          &kp J                       &kp D        &kp Z                &kp SEMI            &kp W            &kp COMMA         &kp DOT        &kp FSLH           &globe_os
+                                                                   &flt_fn L_FUNC F18          &flt_ctl L_NAV R  &ht_sdel L_NUMBER 0  &ht_rep L_NUMBER 0  &flt_ctl L_NAV SPACE  &ht_fak L_FUNC 0
+            >;
+        };
+
+        /* Navigation: held by the middle thumbs (&flt_ctl L_NAV on 33 / 36). Nav and
+         * media rows, plus swapper, num_word, BT, OS toggle, reset and
+         * studio_unlock. Position 4 is the mouse layer key (added after the
+         * board dump this layer was copied from). */
+        control {
+            display-name = "Navigation";
+            bindings = <
+                           &kp C_VOL_UP  &kp HOME  &kp UP        &kp END    &ht_mouse L_MOUSE L_MOUSE  &swapper            &ak_alt       &kp LS(TAB)     &kp UP      &kp TAB
+                           &kp C_VOL_DN  &kp LEFT  &kp DOWN      &kp RIGHT  &leader                    &caps_word          &kp ENTER     &kp LEFT        &kp DOWN    &kp RIGHT
+            &kp LG(SPACE)  &kp C_MUTE    &kp C_PP  &kp C_REWIND  &kp C_FF   &sw_layout OS_NEXT         &num_word L_NUMBER  &bt BT_CLR    &studio_unlock  &to L_BASE  &bt BT_SEL 3  &sys_reset
+                                                   &trans        &trans     &trans                     &bt BT_SEL 0        &bt BT_SEL 1  &bt BT_SEL 2
+            >;
+        };
+
+        /* Function: F1-F24. Left outer thumb = &flt_fn (hold, tap F18),
+         * right outer thumb = &ht_fak (hold). */
+        fn {
+            display-name = "Function";
+            bindings = <
+                                        &kp F1  &kp F2   &kp F3   &kp F4   &kp F13  &kp F16  &kp F17       &kp F18  &kp F19  &kp F20
+                                        &kp F5  &kp F6   &kp F7   &kp F8   &kp F14  &kp F21  &kp F22       &kp F23  &kp F24  &trans
+            &smart_layer L_FUNC L_FUNC  &kp F9  &kp F10  &kp F11  &kp F12  &kp F15  &trans   &trans        &trans   &trans   &trans   &trans
+                                                         &trans   &trans   &trans   &trans   &mo L_NUMBER  &trans
+            >;
+        };
+
+        /* Number: digits plus keypad operators (mirrored per hand), held by the
+         * inner thumbs (&ht_sdel / &ht_rep). */
+        sym {
+            display-name = "Number";
+            bindings = <
+                    &kp KP_DIVIDE  &kp KP_MULTIPLY  &kp KP_MINUS  &kp KP_PLUS  &kp KP_EQUAL  &kp KP_EQUAL  &kp KP_PLUS  &kp KP_MINUS  &kp KP_MULTIPLY  &kp KP_DIVIDE
+                    &kp N1         &kp N2           &kp N3        &kp N4       &kp N5        &kp N5        &kp N4       &kp N3        &kp N2           &kp N1
+            &kp N0  &kp N6         &kp N7           &kp N8        &kp N9       &trans        &trans        &kp N9       &kp N8        &kp N7           &kp N6         &kp N0
+                                                    &trans        &trans       &trans        &trans        &trans       &trans
+            >;
+        };
+
+        /* Removed on AJ's board in Studio 2026-10-03, unused (&num_word now
+         * targets Number). Node kept so layer IDs 5-10 don't shift.
+         * Was: Numpad layer, latched by &num_word (auto-layer). Right-hand
+         * numpad as on the Imprint; the Imprint's outer-column operators and
+         * its 0 . , bottom row moved onto the inner column, the right outer key
+         * and the inner right thumb (0). Digits + the num_word continue-list
+         * keep it alive, anything else exits. */
+        num {
+            display-name = "Numpad";
+            bindings = <
+                    &trans  &trans  &trans  &trans  &trans  &kp MINUS  &kp N7  &kp N8  &kp N9  &kp FSLH
+                    &trans  &trans  &trans  &trans  &trans  &kp COMMA  &kp N4  &kp N5  &kp N6  &kp STAR
+            &trans  &trans  &trans  &trans  &trans  &trans  &kp DOT    &kp N1  &kp N2  &kp N3  &kp PLUS  &kp EQUAL
+                                    &trans  &trans  &trans  &kp N0     &trans  &trans
+            >;
+        };
+
+        /* Mouse layer (&ht_mouse L_MOUSE L_MOUSE on Navigation pos 4; tap toggles,
+         * hold = momentary). Neru keys send the Mouse-layer chords: hints =
+         * Cmd+Opt+Shift+Space (then to L_BASE to type the label); neru_menu =
+         * Ctrl+Opt+Shift+Space; neru_m X = menu chord + letter X, then to L_BASE
+         * (modes that take typing: g grid, r rgrid, b bisect, s scroll, c hints
+         * right-click, 2 hints double-click, d hints drag, m monitor select);
+         * neru_ms X = same but stays on L_MOUSE (n next monitor, p previous
+         * monitor, x save cursor, z restore cursor). After the Neru mode ends
+         * (click or Escape) Neru puts the board back here over raw HID
+         * (totem-layer; ~50 ms after the click, a key pressed sooner still
+         * types its Base letter). Unused keys are &none,
+         * never &trans: on a toggled layer a &trans press would auto-exit the
+         * layer and type the base key (CONFIG_ZMK_FLASK_LAYER_AUTOEXIT).
+         * Home row left = firmware middle/right/left click (plain &mkp).
+         * Top row left 0-3 are Neru taps with a modifier on hold (&nmod_h /
+         * &nmod_m, slot 50, balanced 200 ms): Ctrl = hints, Alt = grid, Cmd =
+         * rgrid, Shift = scroll mode. Tap = the Neru action; hold a mod then
+         * press a click key (e.g. Cmd + LCLK on pos 13).
+         * Right hand is WASD-shaped: move on 16/17/18 (left/down/right) with
+         * move up above the middle finger (7); scroll up/down on 6/8, scroll
+         * left/right beside move left/right (15/19).
+         * Thumbs are stacking speed holds, shared by pointer and scroll, any
+         * order (multipliers in the tuning block at the top). Each also taps its
+         * Base key (&mlt / &msdel / &mrep / &mfak, slot 48, hold-preferred 200
+         * ms: another key pressed while the thumb is down = hold at once; a
+         * lone tap = F18 / R / Super Delete | Repeat / Space / Adaptive Key):
+         *   32/37 L_SCROLL_SLOW  /3
+         *   33/36 L_SCROLL_FAST  x3
+         *   34/35 L_AMP_DOWN     /5
+         * Hold any combination: they multiply (outer+inner = /15). Clicks stay
+         * on the left home row.
+         *
+         *  hints   grid    rgrid   scroll  [mouse]   | .      scr_U  mv_U   scr_D  .
+         *  bisect  MCLK    RCLK    LCLK    hdrag     | scr_L  mv_L   mv_D   mv_R   scr_R
+         *  ESC  hdblclk  hrclick  menu  savepos rstpos | MB4  MB5  monSel monNxt monPrv  .
+         *                  slow/3  fast x3 slower/5  | slower/5  fast x3 slow/3
+         *   taps (hold-tap):  F18      R       SuperDel  | Repeat    Space   AdaptiveKey
+         */
+        mouse {
+            display-name = "Mouse";
+            bindings = <
+                         &nmod_h LCTRL 0          &nmod_m LALT G           &nmod_m LGUI R           &nmod_m LSHFT S          &ht_mouse L_MOUSE L_MOUSE    &none                    &sc_up                   &mm_up                   &sc_down                 &none
+                         &neru_m B                &mkp MCLK                &mkp RCLK                &mkp LCLK                &neru_m D                    &sc_left                 &mm_left                 &mm_down                 &mm_right                &sc_right
+&kp ESC                  &neru_m N2               &neru_m C                &neru_menu               &neru_ms X               &neru_ms Z                   &mkp MB4                 &mkp MB5                 &neru_m M                &neru_ms N               &neru_ms P               &none
+                                                                           &mlt L_SCROLL_SLOW F18   &mlt L_SCROLL_FAST R    &msdel L_AMP_DOWN 0          &mrep L_AMP_DOWN 0       &mlt L_SCROLL_FAST SPACE &mfak L_SCROLL_SLOW 0
+            >;
+        };
+
+        /* Layers 6 and 9 are unused spares (IDs kept so the rest don't shift). */
+        mouse_slow {
+            display-name = "Spare 6";
+            bindings = <
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
+                        &trans  &trans  &trans    &trans  &trans  &trans
+            >;
+        };
+
+        /* ZMK's total layer capacity is the compiled devicetree child count;
+         * Studio's add-layer only reuses slots freed by remove-layer. All 11
+         * layers are now in use (no blank spares left): 7-10 are speed overlays. */
+        /* Speed layers 7, 8, 10 (shared by pointer and scroll). All &trans; the
+         * scaling is the &mmv / &msc input-listener overrides at the top. */
+        scroll_slow {
+            display-name = "Speed Slow /3";
+            bindings = <
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
+                        &trans  &trans  &trans    &trans  &trans  &trans
+            >;
+        };
+        scroll_fast {
+            display-name = "Speed Fast x3";
+            bindings = <
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
+                        &trans  &trans  &trans    &trans  &trans  &trans
+            >;
+        };
+        amp_up {
+            display-name = "Spare 9";
+            bindings = <
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
+                        &trans  &trans  &trans    &trans  &trans  &trans
+            >;
+        };
+        amp_down {
+            display-name = "Speed Slower /5";
+            bindings = <
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+        &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
+&trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
+                        &trans  &trans  &trans    &trans  &trans  &trans
+            >;
+        };
+    };
+
+    conditional_layers { compatible = "zmk,conditional-layers"; };
+};

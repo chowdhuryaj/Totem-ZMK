@@ -15,6 +15,26 @@
  * display), so it must not stay in the tree. */
 /delete-node/ &kscan0;
 
+/* USB is keyboard/mouse only on the dongle (it sits on a locked-down
+ * workstation). The xiao_ble board always adds a CDC-ACM console port
+ * (zephyr boards/seeed/xiao_ble/xiao_ble_common.dtsi includes
+ * boards/common/usb/cdc_acm_serial.dtsi), with or without a Studio snippet:
+ * disable it, and point nothing at it. BOARD_SERIAL_BACKEND_CDC_ACM=n in
+ * Kconfig.defconfig drops the console that would use it. */
+&board_cdc_acm_uart {
+    status = "disabled";
+};
+
+/ {
+    chosen {
+        /delete-property/ zephyr,console;
+        /delete-property/ zephyr,shell-uart;
+        /delete-property/ zephyr,uart-mcumgr;
+        /delete-property/ zephyr,bt-mon-uart;
+        /delete-property/ zephyr,bt-c2h-uart;
+    };
+};
+
 / {
     chosen {
         zmk,kscan = &mock_kscan;

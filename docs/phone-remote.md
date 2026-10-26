@@ -4,8 +4,8 @@ A phone pairs with the dongle over Bluetooth and types, points and scrolls on
 the computer the dongle is plugged into. What the phone sends leaves through
 ZMK's normal HID path (USB, or the active BLE profile, following `&out`), so
 the computer sees the same keyboard and mouse as always. Nothing is installed
-on the computer, no USB interface is added, and the dongle never types on its
-own.
+on the computer, no USB interface is added (see "What the USB host sees"),
+and the dongle never types on its own.
 
 Ported from NEXUS Remote Input
 ([vaibhav8600-rgb/nexus](https://github.com/vaibhav8600-rgb/nexus), MIT,
@@ -13,6 +13,23 @@ commit `8b97dc2`): `src/phone_remote/`, `tests/phone_remote/`. The wire
 format is NEXUS's
 [remote-input-protocol.md](https://github.com/vaibhav8600-rgb/nexus/blob/main/docs/remote-input-protocol.md)
 (version 1), with the deltas below.
+
+## What the USB host sees
+
+The dongle builds (`totem_dongle`, `totem_dongle_no_als`) show the computer
+they are plugged into one USB HID interface: ZMK's keyboard, mouse and
+consumer (media) keys. Nothing else:
+
+- No CDC-ACM serial port: the `studio-rpc-usb-uart` snippet is off, so ZMK
+  Studio is BLE only on the dongle.
+- No vendor raw HID interface (usage page 0xFF60): `CONFIG_RAW_HID_USB=n`
+  compiles it out (zmk-raw-hid fork, branch `transport-scoped`). Flask tuning
+  is BLE only on the dongle.
+- Flask replies go only to the BLE host that sent the request, never to USB
+  (upstream zmk-raw-hid copied every reply to both).
+
+The halves' images are unchanged (the left central still has USB Studio and
+USB raw HID).
 
 ## Enable
 
@@ -161,9 +178,17 @@ Android showed its own code to type on the dongle. What this port does:
 
 Basics
 - [ ] Dongle boots, halves connect, screen and Endgame work as before.
-- [ ] The computer sees no new USB device or interface.
-- [ ] Studio over USB still connects and edits the keymap.
-- [ ] Studio over BLE (Totem-Flask on the Mac) still connects.
+- [ ] USB shows keyboard/mouse only. Plug the dongle into the Mac by USB
+      and run `system_profiler SPUSBDataType` and
+      `ioreg -p IOUSB -l -w0 | grep -i -E 'interface|class'`. Expect a
+      single HID interface (keyboard/mouse/consumer), no CDC (class 2 / 10)
+      and no vendor 0xFF60 collection. On Windows, Device Manager shows only
+      HID Keyboard Device + HID-compliant mouse (+ consumer control), no
+      COM port.
+- [ ] Studio over BLE (Totem-Flask on the Mac) connects and edits the
+      keymap. Studio over USB is gone on purpose.
+- [ ] Flask tuning over BLE: Totem-Flask on the Mac, dongle on BLE (not
+      USB), connects to the 0xFF60 device and a value reads and saves.
 - [ ] Endgame pairs and points with phone remote on; Pair Endgame still works.
 
 Pairing
