@@ -64,8 +64,11 @@ read Status (remote on, USB up, typing, window open, host LEDs, queue room,
 output, both halves' batteries).
 
 Cannot: open the pairing window, switch phone input off or forget phones
-(keys only), act as a BLE keyboard host (ZMK's and zmk-raw-hid's HID services
-are refused on a phone link), drive NEXUS actions.
+(keys only), drive NEXUS actions, or use any other GATT service. A phone's
+link is limited to the remote service, GAP and GATT, so it cannot act as a
+BLE keyboard host (HID services refused) or reach ZMK Studio's BLE RPC
+service (with `STUDIO_LOCKING=n` any app on a paired phone could otherwise
+rewrite the keymap).
 
 ## Deltas from the NEXUS protocol page
 
@@ -83,6 +86,30 @@ are refused on a phone link), drive NEXUS actions.
 - Firmware-side only: a bonded host that reconnects inside the pairing
   window is left to ZMK instead of being taken for the phone.
 
+## Pairing security (changed vs NEXUS)
+
+NEXUS relied on `BT_GATT_PERM_*_LESC`. At the pinned Zephyr,
+`bt_gatt_check_perm()` checks LESC as "encrypted with Secure Connections
+keys" only, not MITM, and `BT_SMP_ENFORCE_MITM` only sets the MITM request
+flag; neither refuses Just Works. So a device that cannot type a code could
+pair Just Works inside the window and type to the computer. This port:
+
+- adds `*_AUTHEN` to every permission (CCC included): LESC + AUTHEN = L4,
+  Secure Connections with a passkey;
+- refuses pairing unless the phone's IO capability is KeyboardOnly or
+  KeyboardDisplay (the only ones that give passkey entry against the
+  dongle's DisplayOnly);
+- after pairing, keeps the device only at security L4; anything lower is
+  unpaired, its ZMK profile cleared and its link dropped;
+- inside the window takes one candidate and drops every other unknown link,
+  since ZMK's own callbacks would let it pair Just Works into the open
+  profile; bonded hosts and paired phones are left alone. A new BLE host
+  cannot pair during the window;
+- drops the candidate when the window closes unpaired (e.g. a timeout
+  mid-passkey);
+- forgets remembered phones whose bond is gone (`BT_CLR_ALL`, settings
+  reset) when the window opens, instead of showing NO ROOM.
+
 ## Android (changed vs NEXUS)
 
 NEXUS lists Android as not pairing: Chrome's first read failed at once, and
@@ -94,8 +121,8 @@ Android showed its own code to type on the dongle. What this port does:
   and the phone is always the one that enters the code (LE Secure
   Connections, passkey entry). ZMK's global callbacks at the pinned ZMK carry
   no display/entry/confirm (`ZMK_BLE_PASSKEY_ENTRY` is off), i.e.
-  NoInputNoOutput, which cannot reach the MITM level the service needs; the
-  build has `BT_SMP_SC_PAIR_ONLY` and `BT_SMP_ENFORCE_MITM` on.
+  NoInputNoOutput. MITM is enforced by the checks in "Pairing security",
+  not by `BT_SMP_ENFORCE_MITM` (that only requests it).
 - **Phone connected before the window.** The likeliest way Android ended up
   on the wrong callbacks: it was already connected when the window opened,
   so the overlay (applied only on connect) never reached its link. Opening
@@ -129,6 +156,18 @@ Pairing
       types (not treated as the phone).
 - [ ] Phone that forgot the dongle: CONNECT AGAIN, then pairs; no second
       profile used.
+- [ ] Just Works device refused: inside the window, connect from a device
+      with no keyboard (e.g. nRF Connect on a second phone set to
+      NoInputNoOutput, or a BLE dev board) and read Status; pairing is
+      refused (`IO capability ... cannot enter a passkey` in the log) and
+      no profile is used.
+- [ ] Newcomer refused: while one phone is pairing, a second unknown device
+      that connects is dropped (`another device is already pairing`).
+- [ ] Studio from the phone refused: after pairing, nRF Connect on the phone
+      shows the Studio service but reads/writes on it fail (Insufficient
+      Authorization); Studio on the Mac still works.
+- [ ] Window times out while the passkey is shown: the phone's link drops.
+- [ ] After `&bt BT_CLR_ALL`, Phone Pair opens the window (no NO ROOM).
 
 Android (Samsung Z Flip, Chrome)
 - [ ] Window open, app Connect, first Status read fails, Android asks for a

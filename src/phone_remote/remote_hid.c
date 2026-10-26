@@ -92,6 +92,9 @@ static void hold(uint32_t encoded)
 		return;
 	}
 	g_held[g_nheld++] = encoded;
+	/* Armed here too: a press queued behind text runs long after the
+	 * write that brought it, and must not be held with no watchdog. */
+	remote_hid_keepalive();
 	key_event(encoded, true);
 }
 
@@ -215,6 +218,15 @@ static void step_fn(struct k_work *work)
 		set_typing(false);
 		return;
 	}
+	if (!remote_is_on()) {
+		/* Switched off with this already queued: the release work
+		 * empties the queue; type nothing meanwhile. */
+		K_SPINLOCK(&g_qlock) {
+			ring_buf_reset(&g_queue);
+		}
+		set_typing(false);
+		return;
+	}
 
 	set_typing(true);
 	k_work_schedule(&g_step,
@@ -304,6 +316,14 @@ void remote_hid_set_delay(uint8_t ms)
 
 /* ---- mouse --------------------------------------------------------------- */
 
+/*
+ * ponytail: shared mouse report. ZMK has one global mouse report; this
+ * writes it on the system work queue while the Endgame's input listener
+ * (zmk-ble-mouse-host) writes it on the input thread, unlocked. Simultaneous
+ * phone and Endgame motion can drop or merge one report's movement. Upgrade
+ * path: a virtual input device (DT node + zmk,input-listener) fed with
+ * input_report(), so both go through the input thread.
+ */
 static void send_mouse(uint8_t buttons, int32_t x, int32_t y, int32_t wheel,
 		       int32_t hwheel)
 {
@@ -359,6 +379,9 @@ static void mouse_fn(struct k_work *work)
 		seen = g_mseen;
 		g_mx = g_my = g_mwheel = g_mhwheel = 0;
 		g_mseen = 0;
+	}
+	if (!remote_is_on()) {
+		return; /* switched off: release_holds lets go of the buttons */
 	}
 
 	/*

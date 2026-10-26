@@ -54,6 +54,9 @@ void remote_note_activity(void);
 /** Something the Status characteristic reports changed. Any thread. */
 void remote_status_kick(void);
 
+/** Phone input switched on (&phone_toggle). */
+bool remote_is_on(void);
+
 /** Host Caps Lock, when ZMK tracks HID indicators; else false. */
 bool remote_caps_lock(void);
 

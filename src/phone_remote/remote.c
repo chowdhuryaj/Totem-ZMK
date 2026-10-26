@@ -3,9 +3,12 @@
  * commit 8b97dc2), Copyright (c) 2026 VAIBHAV TECH, MIT License.
  * Totem changes (docs/phone-remote.md): NEXUS screen, sound, actions and
  * status store removed; status read straight from ZMK events; Control 0x06
- * always refused; every HID service (ZMK's and zmk-raw-hid's) kept from
- * phones; a bonded host reconnecting in the window is not taken for the
- * phone; &phone_pair pressed again cancels the window.
+ * always refused; phone links limited to this service plus GAP/GATT;
+ * pairing needs a phone that can type the passkey (L4 enforced, Just Works
+ * refused and unpaired); unknown newcomers during the window are dropped;
+ * a bonded host reconnecting in the window is not taken for the phone;
+ * stale phones pruned against real bonds; &phone_pair pressed again
+ * cancels the window.
  *
  * Phone remote: the phone's side of the radio.
  *
@@ -118,13 +121,13 @@ static const struct bt_uuid_128 k_status = BT_UUID_INIT_128(REMOTE_UUID(6));
 
 static bool g_on = true; /* remote mode, persisted */
 
-/* HID services kept from phones: ZMK's and, when built, zmk-raw-hid's. */
-#define HIDS_MAX 2
+/* The only services a phone's link may use besides ours: GAP (0x1800) and
+ * GATT (0x1801). Handle ranges, found once at init; the database is static. */
 static struct {
 	uint16_t start, end;
-} g_hids[HIDS_MAX];
-static uint8_t g_nhids;
-static bool g_hids_open; /* init only: the last range has no end yet */
+} g_allow[2];
+static uint8_t g_nallow;
+static bool g_allow_open; /* init only: the last range has no end yet */
 
 /* The halves' batteries, 0-100 or 0xFF, by split peripheral slot: slot 0 is
  * whichever half paired first (build.yaml pairs LEFT first). */
@@ -146,6 +149,7 @@ static int g_pair_profile = -1; /* work queue only */
 static bool g_just_paired;      /* the window is closing on a new pairing */
 static uint32_t g_wait_variant; /* 1: show AGAIN rather than WAIT */
 static bt_addr_le_t g_forget;   /* a known phone that lost its pairing */
+static bt_addr_le_t g_reject;   /* paired below L4: unpair it */
 static int g_prev_profile;      /* work queue only */
 static uint8_t g_last_status[STATUS_LEN];
 static atomic_t g_output; /* REMOTE_OUTPUT_* asked for, until applied */
@@ -161,6 +165,8 @@ static void output_fn(struct k_work *work);
 static void drop_fn(struct k_work *work);
 static void forget_fn(struct k_work *work);
 static void phones_save_fn(struct k_work *work);
+static void reject_fn(struct k_work *work);
+static K_WORK_DEFINE(g_reject_work, reject_fn);
 static K_WORK_DELAYABLE_DEFINE(g_status_work, status_fn);
 static K_WORK_DEFINE(g_pair_open_work, pair_open_fn);
 static K_WORK_DELAYABLE_DEFINE(g_pair_close, pair_close_fn);
@@ -254,6 +260,11 @@ static uint8_t host_leds(void)
 #else
 	return 0;
 #endif
+}
+
+bool remote_is_on(void)
+{
+	return g_on;
 }
 
 bool remote_caps_lock(void)
@@ -497,25 +508,28 @@ static struct _bt_gatt_ccc g_status_ccc =
 	BT_GATT_CCC_INITIALIZER(NULL, status_ccc_write, NULL);
 
 /*
- * LESC permissions: an encrypted, MITM-protected link - which on this
- * service means a passkey read off the NEXUS screen. A phone that is merely
- * encrypted (Just Works) gets an authentication error, and pairs properly.
+ * LESC + AUTHEN permissions. At the pinned Zephyr, bt_gatt_check_perm()
+ * checks LESC as "encrypted with SC keys" only (gatt.c, BT_KEYS_SC), not
+ * MITM; AUTHEN adds security >= L3 (MITM). Together: L4, i.e. LE Secure
+ * Connections with the passkey read off the Prospector. A Just Works link
+ * gets Insufficient Authentication.
  */
+#define PERM_W (BT_GATT_PERM_WRITE_LESC | BT_GATT_PERM_WRITE_AUTHEN)
+#define PERM_R (BT_GATT_PERM_READ_LESC | BT_GATT_PERM_READ_AUTHEN)
 BT_GATT_SERVICE_DEFINE(phone_remote_svc,
 	BT_GATT_PRIMARY_SERVICE(&k_svc),
 	BT_GATT_CHARACTERISTIC(&k_mouse.uuid, BT_GATT_CHRC_WRITE_WITHOUT_RESP,
-			       BT_GATT_PERM_WRITE_LESC, NULL, write_mouse, NULL),
+			       PERM_W, NULL, write_mouse, NULL),
 	BT_GATT_CHARACTERISTIC(&k_key.uuid, BT_GATT_CHRC_WRITE,
-			       BT_GATT_PERM_WRITE_LESC, NULL, write_key, NULL),
+			       PERM_W, NULL, write_key, NULL),
 	BT_GATT_CHARACTERISTIC(&k_text.uuid, BT_GATT_CHRC_WRITE,
-			       BT_GATT_PERM_WRITE_LESC, NULL, write_text, NULL),
+			       PERM_W, NULL, write_text, NULL),
 	BT_GATT_CHARACTERISTIC(&k_ctrl.uuid, BT_GATT_CHRC_WRITE,
-			       BT_GATT_PERM_WRITE_LESC, NULL, write_ctrl, NULL),
+			       PERM_W, NULL, write_ctrl, NULL),
 	BT_GATT_CHARACTERISTIC(&k_status.uuid,
 			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
-			       BT_GATT_PERM_READ_LESC, read_status, NULL, NULL),
-	BT_GATT_CCC_MANAGED(&g_status_ccc,
-			    BT_GATT_PERM_READ_LESC | BT_GATT_PERM_WRITE_LESC),
+			       PERM_R, read_status, NULL, NULL),
+	BT_GATT_CCC_MANAGED(&g_status_ccc, PERM_R | PERM_W),
 );
 
 /* Primary service, then two attributes per characteristic: Status is 10. */
@@ -558,6 +572,13 @@ static bool is_declaration(const struct bt_gatt_attr *attr)
 	       !bt_uuid_cmp(attr->uuid, BT_UUID_GATT_CHRC);
 }
 
+/*
+ * Hosts, Studio and the halves: everything but our service. A phone's link:
+ * an allowlist - our service, GAP, GATT and declarations - so a phone bond
+ * reaches neither the HID services (ZMK's, zmk-raw-hid's) nor ZMK Studio's
+ * RPC service (STUDIO_LOCKING=n: any app on the phone could rewrite the
+ * keymap) nor anything a future module adds.
+ */
 static bool authorize(struct bt_conn *conn, const struct bt_gatt_attr *attr)
 {
 	if (is_declaration(attr)) {
@@ -566,20 +587,19 @@ static bool authorize(struct bt_conn *conn, const struct bt_gatt_attr *attr)
 	if (in_service(attr)) {
 		return serving(conn);
 	}
-	if (!g_nhids || !is_phone(conn)) {
-		return true; /* hosts, Studio, the halves: untouched */
+	if (!is_phone(conn)) {
+		return true;
 	}
 
-	/* The handle walk is only paid on a phone's link, and a phone has no
-	 * business outside this service after discovery. */
+	/* The handle walk is only paid on a phone's link. */
 	uint16_t h = bt_gatt_attr_get_handle(attr);
 
-	for (int i = 0; i < g_nhids; i++) {
-		if (h >= g_hids[i].start && h <= g_hids[i].end) {
-			return false;
+	for (int i = 0; i < g_nallow; i++) {
+		if (h >= g_allow[i].start && h <= g_allow[i].end) {
+			return true;
 		}
 	}
-	return true;
+	return false;
 }
 
 static const struct bt_gatt_authorization_cb k_authz = {
@@ -587,9 +607,9 @@ static const struct bt_gatt_authorization_cb k_authz = {
 	.write_authorize = authorize,
 };
 
-/* Find every HID service's handle range once; the database is static. */
-static uint8_t find_hids(const struct bt_gatt_attr *attr, uint16_t handle,
-			 void *user_data)
+/* Find the GAP and GATT services' handle ranges once. */
+static uint8_t find_allowed(const struct bt_gatt_attr *attr, uint16_t handle,
+			    void *user_data)
 {
 	ARG_UNUSED(user_data);
 
@@ -597,13 +617,15 @@ static uint8_t find_hids(const struct bt_gatt_attr *attr, uint16_t handle,
 	    bt_uuid_cmp(attr->uuid, BT_UUID_GATT_SECONDARY)) {
 		return BT_GATT_ITER_CONTINUE;
 	}
-	if (g_hids_open) {
-		g_hids[g_nhids - 1].end = handle - 1;
-		g_hids_open = false;
+	if (g_allow_open) {
+		g_allow[g_nallow - 1].end = handle - 1;
+		g_allow_open = false;
 	}
-	if (!bt_uuid_cmp(attr->user_data, BT_UUID_HIDS) && g_nhids < HIDS_MAX) {
-		g_hids[g_nhids++].start = handle;
-		g_hids_open = true;
+	if ((!bt_uuid_cmp(attr->user_data, BT_UUID_GAP) ||
+	     !bt_uuid_cmp(attr->user_data, BT_UUID_GATT)) &&
+	    g_nallow < ARRAY_SIZE(g_allow)) {
+		g_allow[g_nallow++].start = handle;
+		g_allow_open = true;
 	}
 	return BT_GATT_ITER_CONTINUE;
 }
@@ -849,6 +871,18 @@ static void serve(struct bt_conn *conn)
  * (ZMK_BLE_PASSKEY_ENTRY is off), i.e. NoInputNoOutput, which can never
  * reach the LESC+MITM level this service needs.
  */
+static void drop(struct bt_conn *conn, const char *why)
+{
+	LOG_WRN("remote: dropping link: %s", why);
+	bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+}
+
+/*
+ * Inside the window ZMK's active profile is open, so ZMK's own callbacks
+ * would let any other link pair Just Works into it (ble.c
+ * auth_pairing_accept / auth_pairing_complete). One candidate at a time;
+ * any other unknown link is dropped. Known phones are left alone.
+ */
 static void take_candidate(struct bt_conn *conn)
 {
 	bool candidate = false;
@@ -860,6 +894,9 @@ static void take_candidate(struct bt_conn *conn)
 		}
 	}
 	if (!candidate) {
+		if (!known_phone(bt_conn_get_dst(conn))) {
+			drop(conn, "another device is already pairing");
+		}
 		return;
 	}
 
@@ -869,8 +906,8 @@ static void take_candidate(struct bt_conn *conn)
 		/* SMP already latched ZMK's callbacks on this link (it tried to
 		 * pair before the window): no passkey possible here. Drop it;
 		 * the phone reconnects inside the window and gets the overlay. */
-		LOG_WRN("remote: auth overlay refused (%d), dropping link", err);
-		bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+		LOG_WRN("remote: auth overlay refused (%d)", err);
+		drop(conn, "SMP already ran without the passkey callbacks");
 	}
 }
 
@@ -909,7 +946,7 @@ static void on_connected(struct bt_conn *conn, uint8_t err)
  * connected, its first read failed, and it is waiting to bond) would
  * otherwise pair through ZMK's callbacks and never see a passkey. Any
  * peripheral link that is neither a paired phone nor a bonded host is
- * taken as the candidate.
+ * taken as the candidate; any further one is dropped (take_candidate).
  */
 static void sweep_cb(struct bt_conn *conn, void *data)
 {
@@ -970,16 +1007,26 @@ BT_CONN_CB_DEFINE(phone_remote_conn) = {
 
 /* ---- pairing ------------------------------------------------------------- */
 
+/* IO capabilities, Core Spec Vol 3 Part H 3.5.1 Table 3.4. Against our
+ * DisplayOnly, only these two give passkey entry (MITM); every other one
+ * would be Just Works. */
+#define IO_KEYBOARD_ONLY     0x02
+#define IO_KEYBOARD_DISPLAY  0x04
+
 static enum bt_security_err pairing_accept(struct bt_conn *conn,
 					   const struct bt_conn_pairing_feat *feat)
 {
-	ARG_UNUSED(feat);
-
 	const bt_addr_le_t *addr = bt_conn_get_dst(conn);
 
 	if (!pair_open()) {
 		LOG_WRN("remote: pairing refused, window closed");
 		return BT_SECURITY_ERR_PAIR_NOT_ALLOWED;
+	}
+	if (feat->io_capability != IO_KEYBOARD_ONLY &&
+	    feat->io_capability != IO_KEYBOARD_DISPLAY) {
+		LOG_WRN("remote: pairing refused, IO capability %u cannot enter a passkey",
+			feat->io_capability);
+		return BT_SECURITY_ERR_AUTH_REQUIREMENT;
 	}
 	if (known_phone(addr)) {
 		/*
@@ -1036,6 +1083,20 @@ static void pairing_complete(struct bt_conn *conn, bool bonded)
 
 	const bt_addr_le_t *addr = bt_conn_get_dst(conn);
 
+	if (bt_conn_get_security(conn) < BT_SECURITY_L4) {
+		/* Not LE SC with the passkey: never a phone. ZMK's own
+		 * pairing_complete runs after this one and files it into the
+		 * open profile, so clear that profile afterwards (reject_fn). */
+		LOG_WRN("remote: pairing at security %d refused, unpairing",
+			bt_conn_get_security(conn));
+		bt_addr_le_copy(&g_reject, addr);
+		k_work_submit(&g_reject_work);
+		drop(conn, "paired without a passkey");
+		bt_conn_unref(conn); /* g_pair_conn's reference */
+		passkey_gone();
+		return;
+	}
+
 	if (!known_phone(addr) && g_phones.n < PHONES_MAX) {
 		bt_addr_le_copy(&g_phones.addr[g_phones.n], addr);
 		g_phones.n++;
@@ -1070,6 +1131,39 @@ static struct bt_conn_auth_info_cb g_auth_info = {
 	.pairing_failed = pairing_failed,
 };
 
+/* bt_foreach_bond callback: mark which remembered phones still have a bond. */
+static void bond_seen(const struct bt_bond_info *info, void *data)
+{
+	uint8_t *seen = data;
+
+	for (int i = 0; i < g_phones.n && i < PHONES_MAX; i++) {
+		if (!bt_addr_le_cmp(&info->addr, &g_phones.addr[i])) {
+			*seen |= BIT(i);
+		}
+	}
+}
+
+/* Forget remembered phones whose bond is gone (&bt BT_CLR_ALL, a settings
+ * reset of the bonds), or the window would say NO ROOM for nobody. */
+static void phones_prune(void)
+{
+	uint8_t seen = 0;
+	uint8_t n = 0;
+
+	bt_foreach_bond(BT_ID_DEFAULT, bond_seen, &seen);
+	for (int i = 0; i < g_phones.n && i < PHONES_MAX; i++) {
+		if (seen & BIT(i)) {
+			g_phones.addr[n++] = g_phones.addr[i];
+		}
+	}
+	if (n != g_phones.n) {
+		LOG_INF("remote: %d remembered phone(s) had no bond, forgotten",
+			g_phones.n - n);
+		g_phones.n = n;
+		phones_save();
+	}
+}
+
 /*
  * Open the window: switch ZMK to a free profile, so ZMK's own advertising
  * and pairing rules let a phone in. The highest free slot, to leave the low
@@ -1086,6 +1180,7 @@ static void pair_open_fn(struct k_work *work)
 		remote_pair_cancel();
 		return;
 	}
+	phones_prune();
 	if (g_phones.n < PHONES_MAX) {
 		for (int i = ZMK_BLE_PROFILE_COUNT - 1; i >= 0; i--) {
 			if (zmk_ble_profile_is_open(i)) {
@@ -1123,14 +1218,21 @@ static void pair_close_fn(struct k_work *work)
 
 	struct bt_conn *stale = NULL;
 
-	/* A candidate the window never paired - a known phone back with its
-	 * pairing intact, whose app never subscribed - must not keep the
-	 * slot the next window's phone needs. */
+	/* A candidate the window never paired must not keep the slot the
+	 * next window's phone needs. A known phone back with its pairing
+	 * intact (app never subscribed) stays; anything else - typically a
+	 * phone timed out mid-passkey - is dropped, or once the window is
+	 * closed it would no longer count as a phone and would get a host's
+	 * GATT access. */
 	K_SPINLOCK(&g_lock) {
 		stale = g_pair_conn;
 		g_pair_conn = NULL;
 	}
 	if (stale) {
+		if (!known_phone(bt_conn_get_dst(stale))) {
+			bt_conn_auth_cancel(stale); /* harmless if nothing pending */
+			drop(stale, "pairing window closed");
+		}
 		bt_conn_unref(stale);
 	}
 
@@ -1231,6 +1333,28 @@ static void forget_fn(struct k_work *work)
 	}
 }
 
+/* A link that paired below L4: clear the ZMK profile it was filed into,
+ * which also deletes the bond and drops the link. */
+static void reject_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	int active = zmk_ble_active_profile_index();
+	int idx = zmk_ble_profile_index(&g_reject);
+
+	if (idx < 0) {
+		bt_unpair(BT_ID_DEFAULT, &g_reject);
+		return;
+	}
+	if (idx != active) {
+		zmk_ble_prof_select(idx);
+	}
+	zmk_ble_clear_bonds();
+	if (idx != active) {
+		zmk_ble_prof_select(active);
+	}
+}
+
 /* ---- on / off, and the keymap actions ------------------------------------ */
 
 static void set_on(bool on)
@@ -1293,10 +1417,10 @@ static int remote_init(void)
 {
 	/* The GATT database is static, so ZMK's HID service sits at the same
 	 * handles from boot to power-off. */
-	bt_gatt_foreach_attr(0x0001, 0xFFFF, find_hids, NULL);
-	if (g_hids_open) {
-		g_hids[g_nhids - 1].end = 0xFFFF;
-		g_hids_open = false;
+	bt_gatt_foreach_attr(0x0001, 0xFFFF, find_allowed, NULL);
+	if (g_allow_open) {
+		g_allow[g_nallow - 1].end = 0xFFFF;
+		g_allow_open = false;
 	}
 
 	/* Zephyr allows one authorization callback set; nothing else on this
