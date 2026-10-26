@@ -1,0 +1,48 @@
+# Phone remote: a phone types and points through the dongle's normal ZMK HID
+# path. Ported from NEXUS Remote Input (github.com/vaibhav8600-rgb/nexus,
+# MIT). See docs/phone-remote.md.
+
+config TOTEM_PHONE_REMOTE
+	bool "Phone remote: type and point from a phone over Bluetooth"
+	default n
+	# Not `depends on SETTINGS` (NEXUS: that closes a Kconfig loop through
+	# ZMK_POINTING); remote.c asserts it. ZMK_DISPLAY: the passkey is read
+	# off the Prospector screen, and without a screen there is no way to pair.
+	depends on ZMK_BLE && ZMK_SPLIT_ROLE_CENTRAL && ZMK_DISPLAY
+	select ZMK_POINTING
+	select BT_GATT_AUTHORIZATION_CUSTOM
+	select RING_BUFFER
+	help
+	  A phone pairs with the dongle (passkey on the Prospector screen,
+	  only inside a window opened with &phone_pair) and writes to one
+	  custom GATT service; what it sends leaves through ZMK's normal HID
+	  path, so the host sees the same keyboard and mouse as always.
+	  Needs one more connection and two more bonds (Kconfig.defconfig).
+
+if TOTEM_PHONE_REMOTE
+
+config TOTEM_PHONE_REMOTE_TEXT_QUEUE_SIZE
+	int "Text queue, bytes"
+	default 512
+	range 64 4096
+
+config TOTEM_PHONE_REMOTE_TYPE_DELAY_MS
+	int "Delay after each typed key report, ms (phone can change per session)"
+	default 8
+	range 2 50
+
+config TOTEM_PHONE_REMOTE_HOLD_TIMEOUT_MS
+	int "Release held keys after this long without phone traffic, ms"
+	default 1000
+
+config TOTEM_PHONE_REMOTE_PHONE_ADV
+	bool "Advertise for paired phones while ZMK is not advertising"
+	default y
+	help
+	  ZMK stops advertising while the host on its active profile is
+	  connected, so a paired phone could not find the dongle again.
+	  With this, the dongle advertises (same identity and name) in
+	  exactly those gaps, and hands the advertiser back when ZMK
+	  wants it. Nothing can pair through it.
+
+endif

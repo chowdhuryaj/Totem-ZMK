@@ -1,0 +1,17 @@
+# Phone remote keys (docs/phone-remote.md): open/cancel the pairing window,
+# switch phone input on/off, forget paired phones.
+
+description: Phone remote action
+
+compatible: "zmk,behavior-phone-remote"
+
+include: zero_param.yaml
+
+properties:
+  action:
+    type: string
+    required: true
+    enum:
+      - "pair"
+      - "toggle"
+      - "clear"

@@ -58,6 +58,27 @@
             compatible = "zmk,behavior-mouse-host-unpair";
             #binding-cells = <0>;
         };
+
+        /* Phone remote (docs/phone-remote.md). &phone_pair opens the 60 s
+         * pairing window (pressed again: cancels it); &phone_toggle switches
+         * phone input on/off (remembered); &phone_clear forgets the phones. */
+        phone_pair: phone_pair {
+            compatible = "zmk,behavior-phone-remote";
+            #binding-cells = <0>;
+            action = "pair";
+        };
+
+        phone_toggle: phone_toggle {
+            compatible = "zmk,behavior-phone-remote";
+            #binding-cells = <0>;
+            action = "toggle";
+        };
+
+        phone_clear: phone_clear {
+            compatible = "zmk,behavior-phone-remote";
+            #binding-cells = <0>;
+            action = "clear";
+        };
     };
 
     /* The module's behaviors carry no Studio metadata at the pinned ZMK (same
@@ -78,6 +99,29 @@
             display-name = "Unpair Endgame";
             #binding-cells = <0>;
             bindings = <&mouse_unpair>;
+        };
+
+        /* Same reason: Studio-assignable phone remote keys, not bound in
+         * totem.keymap. */
+        phone_pair_m: phone_pair_m {
+            compatible = "zmk,behavior-macro";
+            display-name = "Phone Pair";
+            #binding-cells = <0>;
+            bindings = <&phone_pair>;
+        };
+
+        phone_toggle_m: phone_toggle_m {
+            compatible = "zmk,behavior-macro";
+            display-name = "Phone Remote On/Off";
+            #binding-cells = <0>;
+            bindings = <&phone_toggle>;
+        };
+
+        phone_clear_m: phone_clear_m {
+            compatible = "zmk,behavior-macro";
+            display-name = "Forget Phones";
+            #binding-cells = <0>;
+            bindings = <&phone_clear>;
         };
     };
 };
