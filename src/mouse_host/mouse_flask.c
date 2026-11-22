@@ -135,7 +135,8 @@ bool flask_proto_ext_handle(uint8_t cmd, uint8_t channel, uint8_t value_id, uint
         struct zmk_ble_mouse_host_status st;
         zmk_ble_mouse_host_get_status(&st);
         p[0] = st.state;
-        p[1] = (st.bonded ? BIT(0) : 0) | (st.listing ? BIT(1) : 0);
+        p[1] = (st.bonded ? BIT(0) : 0) | (st.listing ? BIT(1) : 0) | (st.wheel ? BIT(2) : 0) |
+               (st.pan ? BIT(3) : 0);
         p[2] = st.battery;
         p[3] = st.buttons;
         put_addr(&p[4], &st.addr);

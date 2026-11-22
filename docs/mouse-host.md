@@ -29,9 +29,9 @@ All of it is dongle only (`totem_dongle`, `totem_dongle_no_als`).
 | 40 | 3 (middle) | `&mkp MCLK` | `&trans` |
 | 41 | 4 (back) | `&mkp MB4` | `&trans` |
 | 42 | 5 (forward) | `&mkp MB5` | `&trans` |
-| 43 | 6 | `&slk_mb6` (PC: F13, mac: HID button 6) | `&trans` |
-| 44 | 7 | `&slk_mb7` (PC: F14, mac: button 7) | `&trans` |
-| 45 | 8 | `&slk_mb8` (PC: F15, mac: button 8) | `&trans` |
+| 43 | 6 (DEFT Pro: Fn1?) | `&slk_mb6` "Mouse Fn1" (PC: F13, mac: HID button 6) | `&trans` |
+| 44 | 7 (Fn2?) | `&slk_mb7` "Mouse Fn2" (PC: F14, mac: button 7) | `&trans` |
+| 45 | 8 (Fn3?) | `&slk_mb8` "Mouse Fn3" (PC: F15, mac: button 8) | `&trans` |
 
 So out of the box every button does what it did before it was a key. Function
 and Mouse bind them outright instead of `&trans` because they can be latched
@@ -106,9 +106,9 @@ Request payload: none.
 | Offset | Field |
 | --- | --- |
 | 0 | state: 0 idle, 1 scanning, 2 connecting, 3 connected |
-| 1 | flags: bit 0 bonded, bit 1 list scan running |
+| 1 | flags: bit 0 bonded, bit 1 list scan running, bit 2 report map has a wheel, bit 3 report map has AC Pan (tilt / horizontal wheel); bits 2-3 are 0 until connected |
 | 2 | battery % 0-100, `0xFF` unknown (no BAS, or not read yet) |
-| 3 | buttons in the mouse's report map, 0 unknown (not connected) |
+| 3 | buttons in the mouse's report map, 0 unknown (not connected). Above 8, only buttons 1-8 reach the keymap (the dongle logs a warning) |
 | 4 | address type (0 public, 1 random) |
 | 5-10 | address, most significant byte first (`AA:BB:CC:DD:EE:FF` = `AA BB CC DD EE FF`); all 0 if none |
 | 11 | name length in bytes (0-29) |
@@ -182,8 +182,8 @@ Payload: none. Forget the mouse and stop reconnecting (state idle).
 → 07 2E 06 00                 pair result 0
 ← 07 2E 06 00                 echo
 → 08 2E 01                    poll status until byte 0 = 03
-← 08 2E 01 03 01 FF 08 01 E1 23 45 67 89 AB 0E
-      connected, bonded, battery not read yet, 8 buttons
+← 08 2E 01 03 0D FF 08 01 E1 23 45 67 89 AB 0E
+      connected, bonded + wheel + pan, battery not read yet, 8 buttons
 ```
 
 (Names and addresses above are made up.)
@@ -205,8 +205,13 @@ those channels tune the mouse. Save on each channel persists it. Channel `0x2D`
 
 ## Needs a hardware check
 
-- The Elecom pairs (list scan sees it, bond survives a dongle reboot, buttons
-  6-8 arrive as bits 5-7 of its report).
+- Target: Elecom DEFT Pro trackball (M-DPT1MR, BLE mode). It pairs (list scan
+  sees it, bond survives a dongle reboot).
+- Its layout: status byte 3 (button count) and flags bits 2-3 (wheel, pan), or
+  `&mouse_dump` on a logging build. Unconfirmed guesses: Fn1-Fn3 are HID
+  buttons 6-8 (positions 43-45), tilt is AC Pan (then it scrolls sideways via
+  the HID mouse, not a key). If tilt arrives as buttons instead, it needs more
+  than 8 buttons and the dongle logs that; nothing is built for it yet.
 - Wheel step size (a hi-res wheel would scroll far too fast; scroll speed
   reaches x0.25, then raise the divisors in the overlay).
 - Battery: whether the mouse has BAS and allows reading it.

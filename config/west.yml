@@ -108,7 +108,7 @@ manifest:
     # a branch push must not change the image. Bump deliberately.
     - name: zmk-ble-mouse-host
       remote: chowdhuryaj
-      revision: 3c18318d49477eb3a23ac00423ff6330a77f2737
+      revision: f63648119e1a1c3b666baa62e1d99d443f0657b4
 
   self:
     path: config

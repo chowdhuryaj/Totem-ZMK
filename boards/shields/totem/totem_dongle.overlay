@@ -11,11 +11,6 @@
  */
 
 #include "totem.dtsi"
-#include <dt-bindings/zmk/keys.h>
-#include <zephyr/dt-bindings/input/input-event-codes.h>
-#include <zephyr/dt-bindings/dt-util.h>
-#include <flask_accel.dtsi>
-#include <flask_scrollsnap.dtsi>
 
 /* config/totem.keymap reads this (overlays and the keymap are one
  * preprocessor run): with it, every layer gets 8 more bindings, one per
@@ -46,6 +41,14 @@
         , <&key_physical_attrs 100 100 1025  520       0     0     0>
         ;
 };
+
+/* After the transform override: one of these headers redefines RC() with
+ * one argument (CI run 45080292175), which broke the RC(row,col) list. */
+#include <dt-bindings/zmk/keys.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/dt-util.h>
+#include <flask_accel.dtsi>
+#include <flask_scrollsnap.dtsi>
 
 /* Live pointer tuning for the paired mouse (Flask, docs/mouse-host.md).
  * Both boot off so a fresh dongle moves exactly as before; the app turns
@@ -150,7 +153,8 @@
     };
 
     behaviors {
-        /* Mouse buttons 6-8 (keymap positions 43-45 by default), split by
+        /* Mouse buttons 6-8 (keymap positions 43-45 by default; on the
+         * Elecom DEFT Pro probably Fn1-Fn3, unconfirmed), split by
          * OS mode (zmk-switch-layout, same index as &slk_globe: 0 = PC,
          * 1 = mac). PC: F13-F15, because Windows/AHK v2 stop at XButton2
          * (placeholders until AJ picks). mac: real HID buttons 6-8, which
@@ -158,18 +162,21 @@
          * stock ZMK refuses buttons past 5 (-EINVAL). */
         slk_mb6: slk_mb6 {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Mouse Fn1 (button 6)";
             #binding-cells = <0>;
             bindings = <&kp F13>, <&mkp BIT(5)>;
         };
 
         slk_mb7: slk_mb7 {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Mouse Fn2 (button 7)";
             #binding-cells = <0>;
             bindings = <&kp F14>, <&mkp BIT(6)>;
         };
 
         slk_mb8: slk_mb8 {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            display-name = "Mouse Fn3 (button 8)";
             #binding-cells = <0>;
             bindings = <&kp F15>, <&mkp BIT(7)>;
         };
