@@ -12,6 +12,7 @@
 #include "totem.dtsi"
 #include <dt-bindings/zmk/keys.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/dt-util.h>
 
 /* totem.dtsi's kscan0 has no col-gpios here (the pins belong to the
  * display), so it must not stay in the tree. */
@@ -58,14 +59,16 @@
         pair-name-prefix = "Endgame";
     };
 
-    /* Mouse buttons 6-8 (INPUT_BTN_5..7). ZMK's mouse HID has 5 buttons and
-     * Windows/AHK v2 stop at XButton2, so they become keys instead.
-     * F13-F15 are placeholders until AJ picks (AHK: F13::, etc.). */
+    /* Mouse buttons 6-8 (INPUT_BTN_5..7), split by OS mode (zmk-switch-layout,
+     * same index as &slk_globe: 0 = PC, 1 = mac). PC: F13-F15, because
+     * Windows/AHK v2 stop at XButton2 (placeholders until AJ picks). mac: real
+     * HID buttons 6-8, which need a ZMK whose mouse descriptor has 8 buttons;
+     * stock ZMK refuses buttons past 5 (-EINVAL), so on stock they do nothing. */
     mouse_btn_keys: mouse_btn_keys {
         compatible = "zmk,input-processor-behaviors";
         #input-processor-cells = <0>;
         codes = <INPUT_BTN_5 INPUT_BTN_6 INPUT_BTN_7>;
-        bindings = <&kp F13 &kp F14 &kp F15>;
+        bindings = <&slk_mb6 &slk_mb7 &slk_mb8>;
     };
 
     /* Forward into the pointing pipeline; buttons 6-8 go through
@@ -82,6 +85,24 @@
     };
 
     behaviors {
+        slk_mb6: slk_mb6 {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&kp F13>, <&mkp BIT(5)>;
+        };
+
+        slk_mb7: slk_mb7 {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&kp F14>, <&mkp BIT(6)>;
+        };
+
+        slk_mb8: slk_mb8 {
+            compatible = "zmk-switch-layout,behavior-switch-layout-key";
+            #binding-cells = <0>;
+            bindings = <&kp F15>, <&mkp BIT(7)>;
+        };
+
         mouse_pair: mouse_pair {
             compatible = "zmk,behavior-mouse-host-pair";
             #binding-cells = <0>;
