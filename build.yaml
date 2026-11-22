@@ -17,8 +17,9 @@
 #     artifact-name: corne_left_with_logging
 #
 # Dongle mode (Prospector): the dongle is the ZMK central and carries Studio,
-# the Flask raw-HID protocol and the Endgame trackball host; both halves are
-# split peripherals. Over USB the dongle shows only ZMK's HID keyboard/mouse;
+# the Flask raw-HID protocol and the BLE mouse host (docs/mouse-host.md: its
+# buttons are keymap positions 38-45, dongle only); both halves are split
+# peripherals. Over USB the dongle shows only ZMK's HID keyboard/mouse;
 # Studio and Flask are BLE-only on the dongle. Flash order:
 #   1. totem_settings_reset on all THREE boards (dongle, left, right), so no
 #      old bond (left was the central) survives.
@@ -28,11 +29,12 @@
 #      lists peripherals in pairing order.
 #   4. The dongle boots with the source keymap, not the Studio-edited one on
 #      the old left central: copy the live keymap over (Studio RPC) first.
-#   5. Only after BOTH halves are connected: assign "Pair Endgame"
-#      (dongle-only macro) to a key in Studio, put the Endgame in pairing
-#      mode, press it. Earlier, the Prospector module files the Endgame's
-#      address into the empty split-peripheral slot and the second half is
-#      refused until a dongle settings_reset.
+#   5. Only after BOTH halves are connected: put the mouse in pairing mode,
+#      then pair it from Totem-Flask (scan + pick, channel 0x2E) or with the
+#      "Pair Mouse" macro (dongle-only, assign it in Studio; first device
+#      with the Mouse appearance). Earlier, the Prospector module files the
+#      mouse's address into the empty split-peripheral slot and the second
+#      half is refused until a dongle settings_reset.
 # Going back without the dongle: settings_reset on both halves, flash the
 # standalone totem_left (central) and totem_right images.
 ---
@@ -91,8 +93,9 @@ include:
     shield: settings_reset
     artifact-name: totem_settings_reset
   # Prospector dongle (central). totem_dongle = mock kscan + the TOTEM matrix
-  # transform / physical layout (so Studio and the keymap see the same 38
-  # positions); prospector_adapter = the display. Studio and the Flask
+  # transform / physical layout plus 8 mouse-button positions (so Studio and
+  # the keymap see the same 46 positions; the halves' images keep 38);
+  # prospector_adapter = the display. Studio and the Flask
   # modules run on the central, which is now the dongle (same STUDIO_LOCKING=n
   # reasoning as the left central entry above).
   #

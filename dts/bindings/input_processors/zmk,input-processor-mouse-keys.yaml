@@ -1,0 +1,15 @@
+# Mouse buttons as keymap positions (docs/mouse-host.md): INPUT_BTN_0..7 from
+# the listener's device become presses/releases of key positions
+# first-position .. first-position + 7, and the button events stop.
+
+description: Mouse buttons to keymap positions
+
+compatible: "zmk,input-processor-mouse-keys"
+
+include: ip_zero_param.yaml
+
+properties:
+  first-position:
+    type: int
+    required: true
+    description: Keymap position of button 1 (left); buttons 2-8 follow.

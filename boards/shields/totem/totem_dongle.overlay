@@ -6,13 +6,58 @@
  * Prospector dongle: no keys, so the real matrix scan is swapped for ZMK's
  * mock kscan (dongle guide). Reuses totem.dtsi so the matrix transform and
  * Studio physical layout stay identical to the halves (the halves send
- * positions already transformed by their own col-offset).
+ * positions already transformed by their own col-offset), plus 8 positions
+ * (38-45) for the BLE mouse's buttons (docs/mouse-host.md).
  */
 
 #include "totem.dtsi"
 #include <dt-bindings/zmk/keys.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <zephyr/dt-bindings/dt-util.h>
+#include <flask_accel.dtsi>
+#include <flask_scrollsnap.dtsi>
+
+/* config/totem.keymap reads this (overlays and the keymap are one
+ * preprocessor run): with it, every layer gets 8 more bindings, one per
+ * mouse button. The halves build the same keymap without it, so they keep
+ * 38 positions. src/mouse_host/mouse_keys.c asserts the lengths agree. */
+#define TOTEM_MOUSE_KEYS
+
+/* ZMK sizes the keymap from the physical layout's transform (zmk/matrix.h
+ * ZMK_KEYMAP_LEN), so the 8 mouse positions are a fifth transform row. No
+ * kscan reports it (the mock kscan has no keys); mouse_keys raises the
+ * positions itself. Studio draws them as a row under the thumbs, left to
+ * right = buttons 1-8 (left, right, middle, back, forward, 6, 7, 8). */
+&default_transform {
+    rows = <5>;
+    map = <TOTEM_TRANSFORM_MAP RC(4,0) RC(4,1) RC(4,2) RC(4,3) RC(4,4) RC(4,5) RC(4,6) RC(4,7)>;
+};
+
+&totem_physical_layout {
+    display-name = "TOTEM + mouse";
+    keys = TOTEM_LAYOUT_KEYS
+        , <&key_physical_attrs 100 100  325  520       0     0     0>
+        , <&key_physical_attrs 100 100  425  520       0     0     0>
+        , <&key_physical_attrs 100 100  525  520       0     0     0>
+        , <&key_physical_attrs 100 100  625  520       0     0     0>
+        , <&key_physical_attrs 100 100  725  520       0     0     0>
+        , <&key_physical_attrs 100 100  825  520       0     0     0>
+        , <&key_physical_attrs 100 100  925  520       0     0     0>
+        , <&key_physical_attrs 100 100 1025  520       0     0     0>
+        ;
+};
+
+/* Live pointer tuning for the paired mouse (Flask, docs/mouse-host.md).
+ * Both boot off so a fresh dongle moves exactly as before; the app turns
+ * them on and Save keeps that. cpi: Elecom mice run ~1200-2000; the binding
+ * default 1600 only normalizes the curve's velocity axis. */
+&flask_accel {
+    start-disabled;
+};
+
+&flask_scrollsnap {
+    start-disabled;
+};
 
 /* totem.dtsi's kscan0 has no col-gpios here (the pins belong to the
  * display), so it must not stay in the tree. */
@@ -50,41 +95,67 @@
         events = <0>;
     };
 
-    /* Endgame trackball over BLE (AJ's zmk-ble-mouse-host fork). Only the
-     * central runs it, so the node and behaviors live here, not in the shared
-     * keymap. */
+    /* Any BLE HID mouse (AJ's zmk-ble-mouse-host fork), paired from the
+     * Flask app (docs/mouse-host.md) or with &mouse_pair (first device with
+     * the Mouse appearance). Only the central runs it, so the node and
+     * behaviors live here, not in the shared keymap. No pair-name-prefix: it
+     * made &mouse_pair Endgame-only; the Flask list still finds the Endgame
+     * (HID UUID). Re-add pair-name-prefix = "Endgame" to get that back. */
     mouse_host: mouse_host {
         compatible = "zmk,ble-mouse-host";
-        /* Pairing mode picks the first Endgame by name, not any mouse. */
-        pair-name-prefix = "Endgame";
     };
 
-    /* Mouse buttons 6-8 (INPUT_BTN_5..7), split by OS mode (zmk-switch-layout,
-     * same index as &slk_globe: 0 = PC, 1 = mac). PC: F13-F15, because
-     * Windows/AHK v2 stop at XButton2 (placeholders until AJ picks). mac: real
-     * HID buttons 6-8, which need a ZMK whose mouse descriptor has 8 buttons;
-     * stock ZMK refuses buttons past 5 (-EINVAL), so on stock they do nothing. */
-    mouse_btn_keys: mouse_btn_keys {
-        compatible = "zmk,input-processor-behaviors";
+    /* Buttons 1-8 become keymap positions 38-45 (src/mouse_host/
+     * mouse_keys.c), so each is a normal per-layer binding (Studio, Flask)
+     * and holds work for drags. Button events stop here; motion and wheel
+     * go on. */
+    mouse_keys: mouse_keys {
+        compatible = "zmk,input-processor-mouse-keys";
         #input-processor-cells = <0>;
-        codes = <INPUT_BTN_5 INPUT_BTN_6 INPUT_BTN_7>;
-        bindings = <&slk_mb6 &slk_mb7 &slk_mb8>;
+        first-position = <38>;
     };
 
-    /* Forward into the pointing pipeline; buttons 6-8 go through
-     * mouse_btn_keys. No layer-conditional processors yet. */
+    /* flask_scrollscale on the wheel itself (the module's own dtsi nodes
+     * scale a scroll ball's X/Y before its xy-to-scroll mapper). Used as
+     * 4/4: the live percent (25-400) divides the divisor and the divisor
+     * cannot go below 1, so a 4 is what lets it go both ways, x0.25 to x4. */
+    mh_wheel_scaler: mh_wheel_scaler {
+        compatible = "zmk,input-processor-flask-scrollscale";
+        #input-processor-cells = <2>;
+        type = <INPUT_EV_REL>;
+        codes = <INPUT_REL_WHEEL>;
+        track-remainders;
+    };
+
+    mh_hwheel_scaler: mh_hwheel_scaler {
+        compatible = "zmk,input-processor-flask-scrollscale";
+        #input-processor-cells = <2>;
+        type = <INPUT_EV_REL>;
+        codes = <INPUT_REL_HWHEEL>;
+        track-remainders;
+    };
+
+    /* Flask channels that tune this chain live: accel 0x10, scroll speed
+     * 0x29, scroll snap 0x26 (each module keeps one global setting, and on
+     * the dongle only this listener uses them). */
     mouse_host_listener {
         compatible = "zmk,input-listener";
         device = <&mouse_host>;
-        input-processors = <&mouse_btn_keys>;
-        /* Calibration knob, first hardware check: the Endgame may send hi-res
-         * wheel values (its smooth scrolling, multiplier 15) that this
-         * dongle reads as whole detents, so scrolling would run ~15x fast.
-         * If so, add (needs #include <input/processors.dtsi>):
-         * input-processors = <&mouse_btn_keys &zip_scroll_scaler 1 15>; */
+        input-processors = <&mouse_keys &flask_accel &mh_wheel_scaler 4 4
+                            &mh_hwheel_scaler 4 4 &flask_scrollsnap>;
+        /* Calibration knob, first hardware check: a mouse may send hi-res
+         * wheel values that this dongle reads as whole detents, so scrolling
+         * runs far too fast. Flask scroll speed reaches x0.25; past that,
+         * raise the divisors (e.g. 4 60 for a x15 wheel). */
     };
 
     behaviors {
+        /* Mouse buttons 6-8 (keymap positions 43-45 by default), split by
+         * OS mode (zmk-switch-layout, same index as &slk_globe: 0 = PC,
+         * 1 = mac). PC: F13-F15, because Windows/AHK v2 stop at XButton2
+         * (placeholders until AJ picks). mac: real HID buttons 6-8, which
+         * need a ZMK whose mouse descriptor has 8 buttons (the pinned fork);
+         * stock ZMK refuses buttons past 5 (-EINVAL). */
         slk_mb6: slk_mb6 {
             compatible = "zmk-switch-layout,behavior-switch-layout-key";
             #binding-cells = <0>;
@@ -148,18 +219,20 @@
      * gap as &mmv/&msc), so macros make them assignable from Studio /
      * Totem-Flask. Not bound in totem.keymap: every thumb on Navigation is
      * load-bearing and AJ's live keymap lives in Studio anyway. Pair forgets
-     * the old bond first, so Unpair is only for "stop reconnecting". */
+     * the old bond first, so Unpair is only for "stop reconnecting". Node
+     * names stay endgame_* (Studio stores bindings by a local id derived
+     * from the node name); only the labels say Mouse now. */
     macros {
         endgame_pair: endgame_pair {
             compatible = "zmk,behavior-macro";
-            display-name = "Pair Endgame";
+            display-name = "Pair Mouse";
             #binding-cells = <0>;
             bindings = <&mouse_pair>;
         };
 
         endgame_unpair: endgame_unpair {
             compatible = "zmk,behavior-macro";
-            display-name = "Unpair Endgame";
+            display-name = "Unpair Mouse";
             #binding-cells = <0>;
             bindings = <&mouse_unpair>;
         };

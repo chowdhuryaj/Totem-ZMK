@@ -9,6 +9,7 @@
  *         10 11 12 13 14     15 16 17 18 19
  *      20 21 22 23 24 25     26 27 28 29 30 31
  *               32 33 34     35 36 37
+ *         dongle only: 38-45 = BLE mouse buttons 1-8 (MOUSE_KEYS below)
  */
 
 /* ===== MOUSE / SCROLL TUNING =====
@@ -76,11 +77,32 @@
 #define KEYS_L 0 1 2 3 4 10 11 12 13 14 20 21 22 23 24 25 32 33 34
 #define KEYS_R 5 6 7 8 9 15 16 17 18 19 26 27 28 29 30 31 35 36 37
 
+/* Dongle only: the BLE mouse's buttons 1-8 are key positions 38-45
+ * (totem_dongle.overlay defines TOTEM_MOUSE_KEYS; docs/mouse-host.md), so
+ * every layer below ends with one of these 8-binding rows. The halves build
+ * without the define and keep 38 positions. Default = what the buttons did
+ * before they were keys: 1-5 native clicks, 6-8 by OS mode (slk_mb6-8 in
+ * the overlay). Base, Function and Mouse bind them outright; the rest are
+ * &trans. Function (smart_layer) and Mouse (&tog) can be latched, and with
+ * CONFIG_ZMK_FLASK_LAYER_AUTOEXIT a &trans press on a latched layer exits
+ * it, so a click would drop the Mouse layer. */
+#ifdef TOTEM_MOUSE_KEYS
+#define MOUSE_POS 38 39 40 41 42 43 44 45
+#define MOUSE_KEYS &mkp LCLK &mkp RCLK &mkp MCLK &mkp MB4 &mkp MB5 &slk_mb6 &slk_mb7 &slk_mb8
+#define MOUSE_TRANS &trans &trans &trans &trans &trans &trans &trans &trans
+#else
+#define MOUSE_POS
+#define MOUSE_KEYS
+#define MOUSE_TRANS
+#endif
+
 /* Hold triggers for the live fht_l / fht_r: the opposite hand plus the
  * same-hand fht keys (20, 32-34 left; 31, 35-37 right), so a same-hand
- * thumb-mod chord (Ctrl+Shift) still holds. */
-#define FHT_TRIG_L KEYS_R 20 32 33 34
-#define FHT_TRIG_R KEYS_L 31 35 36 37
+ * thumb-mod chord (Ctrl+Shift) still holds. Mouse buttons count for both
+ * hands, so a home-row mod held over a quick click (Cmd+click) holds
+ * instead of typing its letter. */
+#define FHT_TRIG_L KEYS_R 20 32 33 34 MOUSE_POS
+#define FHT_TRIG_R KEYS_L 31 35 36 37 MOUSE_POS
 
 /* Navigation-layer nav keys the app switcher ignores (see swapper below). */
 #define SWAP_NAV 7 8 9 16 17 18 19
@@ -1580,6 +1602,7 @@
                                     &fht_l LCTRL N  &fht_l LALT S  &fht_l LGUI H               &kp T        &kp M                &kp P               &kp C            &fht_r RGUI A     &fht_r RALT E  &fht_r RCTRL I
             &fht_l LSHFT B          &kp F           &kp G          &kp J                       &kp D        &kp Z                &kp SEMI            &kp W            &kp COMMA         &kp DOT        &kp FSLH           &globe_os
                                                                    &flt_fn L_FUNC F18          &flt_ctl L_NAV R  &ht_sdel L_NUMBER 0  &ht_rep L_NUMBER 0  &flt_ctl L_NAV SPACE  &ht_fak L_FUNC 0
+            MOUSE_KEYS
             >;
         };
 
@@ -1594,6 +1617,7 @@
                            &kp C_VOL_DN  &kp LEFT  &kp DOWN      &kp RIGHT  &leader                    &caps_word          &kp ENTER     &kp LEFT        &kp DOWN    &kp RIGHT
             &kp LG(SPACE)  &kp C_MUTE    &kp C_PP  &kp C_REWIND  &kp C_FF   &sw_layout OS_NEXT         &num_word L_NUMBER  &bt BT_CLR    &studio_unlock  &to L_BASE  &bt BT_SEL 3  &sys_reset
                                                    &trans        &trans     &trans                     &bt BT_SEL 0        &bt BT_SEL 1  &bt BT_SEL 2
+            MOUSE_TRANS
             >;
         };
 
@@ -1606,6 +1630,7 @@
                                         &kp F5  &kp F6   &kp F7   &kp F8   &kp F14  &kp F21  &kp F22       &kp F23  &kp F24  &trans
             &smart_layer L_FUNC L_FUNC  &kp F9  &kp F10  &kp F11  &kp F12  &kp F15  &trans   &trans        &trans   &trans   &trans   &trans
                                                          &trans   &trans   &trans   &trans   &mo L_NUMBER  &trans
+            MOUSE_KEYS
             >;
         };
 
@@ -1618,6 +1643,7 @@
                     &kp N1         &kp N2           &kp N3        &kp N4       &kp N5        &kp N5        &kp N4       &kp N3        &kp N2           &kp N1
             &kp N0  &kp N6         &kp N7           &kp N8        &kp N9       &trans        &trans        &kp N9       &kp N8        &kp N7           &kp N6         &kp N0
                                                     &trans        &trans       &trans        &trans        &trans       &trans
+            MOUSE_TRANS
             >;
         };
 
@@ -1635,6 +1661,7 @@
                     &trans  &trans  &trans  &trans  &trans  &kp COMMA  &kp N4  &kp N5  &kp N6  &kp STAR
             &trans  &trans  &trans  &trans  &trans  &trans  &kp DOT    &kp N1  &kp N2  &kp N3  &kp PLUS  &kp EQUAL
                                     &trans  &trans  &trans  &kp N0     &trans  &trans
+            MOUSE_TRANS
             >;
         };
 
@@ -1683,6 +1710,7 @@
                          &neru_m B                &mkp MCLK                &mkp RCLK                &mkp LCLK                &neru_m D                    &sc_left                 &mm_left                 &mm_down                 &mm_right                &sc_right
 &kp ESC                  &neru_m N2               &neru_m C                &neru_menu               &neru_ms X               &neru_ms Z                   &mkp MB4                 &mkp MB5                 &neru_m M                &neru_ms N               &neru_ms P               &none
                                                                            &mlt L_SCROLL_SLOW F18   &mlt L_SCROLL_FAST R    &msdel L_AMP_DOWN 0          &mrep L_AMP_DOWN 0       &mlt L_SCROLL_FAST SPACE &mfak L_SCROLL_SLOW 0
+            MOUSE_KEYS
             >;
         };
 
@@ -1694,6 +1722,7 @@
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
                         &trans  &trans  &trans    &trans  &trans  &trans
+            MOUSE_TRANS
             >;
         };
 
@@ -1709,6 +1738,7 @@
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
                         &trans  &trans  &trans    &trans  &trans  &trans
+            MOUSE_TRANS
             >;
         };
         scroll_fast {
@@ -1718,6 +1748,7 @@
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
                         &trans  &trans  &trans    &trans  &trans  &trans
+            MOUSE_TRANS
             >;
         };
         amp_up {
@@ -1727,6 +1758,7 @@
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
                         &trans  &trans  &trans    &trans  &trans  &trans
+            MOUSE_TRANS
             >;
         };
         amp_down {
@@ -1736,6 +1768,7 @@
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
 &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans  &trans
                         &trans  &trans  &trans    &trans  &trans  &trans
+            MOUSE_TRANS
             >;
         };
     };

@@ -66,11 +66,14 @@ manifest:
 
     - name: zmk-flask-modules
       remote: chowdhuryaj
-      # Branch `unify` (totem line + autoshift + mousekeys, proto v23: tap dance holds, release window, eager), shared
-      # with the Imprint. Pinned by SHA so a branch push never changes this
-      # image; bump deliberately, together with Cyboard-ZMK (still on
-      # 28b8b8b / v19).
-      revision: d15993a722b544e523666436ae3fc5c6c4c191f9
+      # Branch `mouse-host` = `unify` d15993a (totem line + autoshift +
+      # mousekeys, proto v23: tap dance holds, release window, eager) + one
+      # weak hook, flask_proto_ext_handle(), so this repo owns the mouse host
+      # channel 0x2E (docs/mouse-host.md). Protocol otherwise unchanged; the
+      # Imprint can stay on unify. Pinned by SHA so a branch push never
+      # changes this image; bump deliberately, together with Cyboard-ZMK
+      # (still on 28b8b8b / v19).
+      revision: 5e4451b70e36b76cf5ac9160e70d114316fbcf25
 
     - name: zmk-switch-layout
       remote: mctechnology17
@@ -98,14 +101,14 @@ manifest:
       remote: carrefinho
       revision: ed98221f3b52b7066dbb10ba3af8a29150b93a5a
 
-    # Endgame trackball as a BLE HID host on the dongle (central). AJ's fork,
-    # `endgame` branch: adds pair-name-prefix so pairing picks the Endgame by
-    # name. Pinned to the branch tip f3d145c (2026-11-22, buttons 6-8 as
-    # INPUT_BTN_5..7): it runs on the dongle beside the phone remote, so a
-    # branch push must not change the image. Bump deliberately.
+    # BLE mouse host on the dongle (central). AJ's fork, `remap` branch =
+    # `endgame` f3d145c (pair-name-prefix, buttons 6-8 as INPUT_BTN_5..7) +
+    # list scan, pair by address, status API and state event (2026-11-22,
+    # docs/mouse-host.md). It runs on the dongle beside the phone remote, so
+    # a branch push must not change the image. Bump deliberately.
     - name: zmk-ble-mouse-host
       remote: chowdhuryaj
-      revision: f3d145c555d5e47a7dde5b801fe8b04dc1766c1b
+      revision: 3c18318d49477eb3a23ac00423ff6330a77f2737
 
   self:
     path: config

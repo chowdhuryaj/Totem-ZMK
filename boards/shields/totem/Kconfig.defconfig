@@ -45,15 +45,15 @@ config ZMK_SPLIT_ROLE_CENTRAL
 config ZMK_SPLIT_BLE_CENTRAL_PERIPHERALS
     default 2
 
-# Live links: 2 halves + the Endgame (zmk-ble-mouse-host) + hosts + one
+# Live links: 2 halves + the BLE mouse (zmk-ble-mouse-host) + hosts + one
 # phone (phone remote, docs/phone-remote.md). ZMK keeps the old host
 # connected when switching profiles (ble.c zmk_ble_prof_select), and
 # connectable advertising needs a free conn object, so 6 (the left central's
-# old budget) left room for two hosts plus an Endgame reconnect; +1 for the
+# old budget) left room for two hosts plus a mouse reconnect; +1 for the
 # phone makes 7. Drop to 4 (+1) only if RAM overflows (then switching to a
 # second host needs &bt BT_DISC first). Bonds: ZMK derives its profile count
 # as BT_MAX_PAIRED - PERIPHERALS (app/include/zmk/ble.h). 8 gave 6 profiles,
-# 5 usable with the Endgame bonded; +2 for two bonded phones makes 10, i.e.
+# 5 usable with the mouse bonded; +2 for two bonded phones makes 10, i.e.
 # 8 profiles: the phones pair into the highest free ones (7, 6) and the
 # keymap's BT_SEL 0-3 stay for hosts. BT_ATT_TX_COUNT needs no line here: ZMK
 # already defaults it to 10 on a split central
@@ -68,7 +68,7 @@ config BT_MAX_PAIRED
 # this timer fires; Zephyr's 5 s left the phone on its own 30 ms for the
 # first 5 s of every reconnect. Below the spec's "should not within 5 s";
 # BLE hosts get ZMK's preferred parameters 4 s sooner too. Peripheral links
-# only: the halves and the Endgame are central links.
+# only: the halves and the mouse are central links.
 config BT_CONN_PARAM_UPDATE_TIMEOUT
     default 1000
 

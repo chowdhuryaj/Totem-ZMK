@@ -55,3 +55,17 @@ config TOTEM_PHONE_REMOTE_PHONE_ADV
 	  wants it. Nothing can pair through it.
 
 endif
+
+# Dongle mouse host (docs/mouse-host.md). Both follow from the dongle's
+# devicetree / modules, so the halves never build them.
+
+config TOTEM_MOUSE_KEYS
+	bool "Mouse buttons as keymap positions"
+	default y
+	depends on DT_HAS_ZMK_INPUT_PROCESSOR_MOUSE_KEYS_ENABLED
+	depends on ZMK_POINTING
+
+config TOTEM_MOUSE_HOST_FLASK
+	bool "Flask channel 0x2E: mouse host status, scan, pair"
+	default y
+	depends on ZMK_BLE_MOUSE_HOST && ZMK_FLASK_PROTO

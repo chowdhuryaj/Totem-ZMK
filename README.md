@@ -30,6 +30,9 @@ and RGB: the Totem has no trackballs and no LED strip.
   the dongle, ported from NEXUS): see [docs/phone-remote.md](docs/phone-remote.md).
   Post-flash Bluetooth check from the Mac: `tests/phone_remote/ble_live_check.py`
   ("Live check from the Mac" in that doc).
+- BLE mouse host on the dongle: any HOGP mouse, paired from Totem-Flask
+  (channel 0x2E), its buttons are keymap positions 38-45: see
+  [docs/mouse-host.md](docs/mouse-host.md).
 - OS switching (`&sw_layout` + `slk_*` keys), app switcher (`&swapper`),
   `&num_word`, adaptive keys (`ak_rti`, `ak_alt`), smart mod/layer.
 
