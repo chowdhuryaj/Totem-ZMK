@@ -10,6 +10,8 @@
  */
 
 #include "totem.dtsi"
+#include <dt-bindings/zmk/keys.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
 
 /* totem.dtsi's kscan0 has no col-gpios here (the pins belong to the
  * display), so it must not stay in the tree. */
@@ -56,16 +58,27 @@
         pair-name-prefix = "Endgame";
     };
 
-    /* Plain forward into the pointing pipeline. No layer-conditional
-     * processors yet (speed layers etc. are AJ's call). */
+    /* Mouse buttons 6-8 (INPUT_BTN_5..7). ZMK's mouse HID has 5 buttons and
+     * Windows/AHK v2 stop at XButton2, so they become keys instead.
+     * F13-F15 are placeholders until AJ picks (AHK: F13::, etc.). */
+    mouse_btn_keys: mouse_btn_keys {
+        compatible = "zmk,input-processor-behaviors";
+        #input-processor-cells = <0>;
+        codes = <INPUT_BTN_5 INPUT_BTN_6 INPUT_BTN_7>;
+        bindings = <&kp F13 &kp F14 &kp F15>;
+    };
+
+    /* Forward into the pointing pipeline; buttons 6-8 go through
+     * mouse_btn_keys. No layer-conditional processors yet. */
     mouse_host_listener {
         compatible = "zmk,input-listener";
         device = <&mouse_host>;
+        input-processors = <&mouse_btn_keys>;
         /* Calibration knob, first hardware check: the Endgame may send hi-res
          * wheel values (its smooth scrolling, multiplier 15) that this
          * dongle reads as whole detents, so scrolling would run ~15x fast.
-         * If so, uncomment (needs #include <input/processors.dtsi>):
-         * input-processors = <&zip_scroll_scaler 1 15>; */
+         * If so, add (needs #include <input/processors.dtsi>):
+         * input-processors = <&mouse_btn_keys &zip_scroll_scaler 1 15>; */
     };
 
     behaviors {
