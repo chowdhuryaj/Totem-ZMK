@@ -67,6 +67,35 @@ Side effects of buttons being keys:
   number, and the app's hold-tap list shows slots 38-45 as keys. Defaults bind
   no hold-tap there.
 
+### Studio physical layout (dongle)
+
+Layout "TOTEM + mouse" (`totem_dongle.overlay`): the 38 TOTEM keys unchanged,
+then positions 38-45 as one row of 1u keys under the thumbs, y = 520,
+x = 325, 425, 525, 625, 725, 825, 925, 1025 (units of 1/100 key; no rotation),
+left to right = buttons 1-8. Transform row 4, `RC(4,0)`-`RC(4,7)`. ZMK
+layouts carry no per-key names; suggested labels for an app: L, R, Middle,
+Back, Forward, Fn1, Fn2, Fn3 (Fn1-Fn3 = buttons 6-8 is a guess for the Elecom
+DEFT Pro until checked on hardware).
+
+## C API (status widget)
+
+`zmk-ble-mouse-host` `include/zmk/ble_mouse_host.h` (branch `remap`, pinned in
+`config/west.yml`):
+
+- `zmk_ble_mouse_host_get_status(struct zmk_ble_mouse_host_status *)`: state
+  (`ZMK_BLE_MOUSE_HOST_IDLE` 0 / `_SCANNING` 1 / `_CONNECTING` 2 /
+  `_CONNECTED` 3), `bonded`, `listing`, `addr`, `name[30]`, `battery`
+  (0-100, 0xFF unknown), `buttons` (0 unknown), `wheel`, `pan`. Copies state
+  only; safe from any thread.
+- Event `zmk_ble_mouse_host_state_changed` (`.state`), raised from the system
+  workqueue whenever any status field may have changed. Subscribe with
+  `ZMK_LISTENER` / `ZMK_SUBSCRIPTION`, then call get_status.
+- Scan list: `zmk_ble_mouse_host_scan_start()` / `_scan_stop()` /
+  `_scan_count()` / `_scan_get(idx, struct zmk_ble_mouse_host_scan_result *)`
+  (`addr`, `rssi`, `appearance`, `name`). Actions (`scan_start`, `scan_stop`,
+  `pair`, `pair_addr`, `unpair`) start BT work: call them from a thread, not a
+  BT callback.
+
 ## Pairing
 
 - From the app: scan, pick, pair (channel below). The list holds devices
