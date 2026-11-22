@@ -63,10 +63,16 @@ Side effects of buttons being keys:
 - Flask's key-state HUD (channel `0x23`) shows them as positions 38-45.
 - Flask hold-tap virtual slots are numbered 46-58 (`flask_holdtap_defaults`
   in the keymap), above the mouse keys, so slots 38-45 are the mouse keys'
-  own timing on the dongle. They were 38-50 before 2026-11-22: saved timings
-  for the old numbers no longer match, so flash with `totem_settings_reset`
-  first (the dongle flash order already does). On a non-dongle central
-  (keymap length 38), slots 38-45 exist but nothing reads them.
+  own timing on the dongle. They were 38-50 before 2026-11-22.
+  **Mandatory: flash `totem_settings_reset` first** on every board that ran a
+  central image built before that (dongle or standalone left half), then the
+  new image. Saved hold-tap timings are restored by slot index, so without the
+  reset the old virtual-slot timings land on the wrong behaviors (wrong
+  tapping terms / flavors, nothing worse). settings_reset also clears BLE
+  bonds and Studio keymap edits: export the keymap first. Not bumping the
+  hold-tap settings version on purpose: that would also throw away every
+  per-key slot tuning on every board, and a wrong timing is visible and
+  harmless, so the documented reset is the safer route.
 
 ### Studio physical layout (dongle)
 
@@ -186,11 +192,22 @@ n ≤ 26.
 
 ### 0x06 SET pair
 
-Payload `[index]`: forget the bonded mouse and pair the listed device at that
-index (ends a running list scan). The dongle connects straight to its address,
-up to 5 tries about 3 s apart, then gives up (state back to idle, address 0).
-Success: state goes 2 → 3 with flags bit 0 set. Payload `[0xFF]`: first-match
-pairing, same as `&mouse_pair`.
+Payload `[index, addr_type, addr[6] most significant first]` (8 bytes): pair
+the listed device at that index, replacing the bonded mouse. The address must
+be the one GET `0x04` returned for that index (offsets 4-10 there, same
+order); if the list changed since (a new scan), the index is out of range or
+the address differs, the reply is `0xFF` and nothing happens. Ends a running
+list scan.
+
+The dongle connects straight to the address, up to 5 tries about 3 s apart.
+While trying: state 2, flags bit 0 (bonded) clear, address = the target. The
+old bond is kept meanwhile (also across a reboot). Success: state 3, bonded,
+and the old mouse is unpaired. Failure (5 tries, or the device refuses or has
+no HID service): the old mouse comes back (state 2/3, bonded, its address),
+or with no old mouse, state 0 and address 0.
+
+Payload `[0xFF]` (no address): first-match pairing, same as `&mouse_pair`;
+this one forgets the old bond at once.
 
 ### 0x07 SET unpair
 
@@ -209,8 +226,8 @@ Payload: none. Forget the mouse and stop reconnecting (state idle).
       index 0, RSSI -60, mouse, random E1:23:45:67:89:AB, name 14 bytes
 → 08 2E 05 00 00              GET result 0 name from offset 0
 ← 08 2E 05 00 00 0E "ELECOM M-XGL20" (14 bytes)
-→ 07 2E 06 00                 pair result 0
-← 07 2E 06 00                 echo
+→ 07 2E 06 00 01 E1 23 45 67 89 AB   pair result 0, its address
+← 07 2E 06 00 01 E1 23 45 67 89 AB   echo
 → 08 2E 01                    poll status until byte 0 = 03
 ← 08 2E 01 03 0D FF 08 01 E1 23 45 67 89 AB 0E
       connected, bonded + wheel + pan, battery not read yet, 8 buttons

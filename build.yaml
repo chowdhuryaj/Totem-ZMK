@@ -22,7 +22,11 @@
 # peripherals. Over USB the dongle shows only ZMK's HID keyboard/mouse;
 # Studio and Flask are BLE-only on the dongle. Flash order:
 #   1. totem_settings_reset on all THREE boards (dongle, left, right), so no
-#      old bond (left was the central) survives.
+#      old bond (left was the central) survives. MANDATORY again when moving
+#      to an image with the hold-tap virtual slots at 46-58 (were 38-50,
+#      2026-11-22): timings restore by slot index and would land on the wrong
+#      behaviors. Same for a standalone left central. Export the Studio
+#      keymap first (the reset clears it). docs/mouse-host.md.
 #   2. Flash the dongle image, totem_left_peripheral and the plain totem_right
 #      image (a peripheral already, unchanged in dongle mode).
 #   3. Pair the LEFT half first, then the RIGHT: the Prospector battery widget

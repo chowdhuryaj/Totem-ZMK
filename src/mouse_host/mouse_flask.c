@@ -31,7 +31,7 @@
 #define MH_SCAN 0x03        /* GET; SET [1 start | 0 stop] */
 #define MH_RESULT 0x04      /* GET [index] */
 #define MH_RESULT_NAME 0x05 /* GET [index, offset] */
-#define MH_PAIR 0x06        /* SET [index | 0xFF = first match] */
+#define MH_PAIR 0x06        /* SET [index, addr type, addr MSB first] | [0xFF] */
 #define MH_UNPAIR 0x07      /* SET */
 
 #define PAIR_FIRST_MATCH 0xFF
@@ -110,8 +110,15 @@ bool flask_proto_ext_handle(uint8_t cmd, uint8_t channel, uint8_t value_id, uint
                 defer(ACT_PAIR_FIRST);
                 return true;
             }
+            /* The address must match: a rescan since the app read the list
+             * would otherwise pair whatever now sits at that index. */
             struct zmk_ble_mouse_host_scan_result r;
-            if (zmk_ble_mouse_host_scan_get(a0, &r) != 0) {
+            uint8_t want[7];
+            if (len < 8 || zmk_ble_mouse_host_scan_get(a0, &r) != 0) {
+                return false;
+            }
+            put_addr(want, &r.addr);
+            if (memcmp(want, &p[1], sizeof(want)) != 0) {
                 return false;
             }
             bt_addr_le_copy(&pending_addr, &r.addr);

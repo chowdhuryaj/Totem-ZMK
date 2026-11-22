@@ -19,10 +19,12 @@ manifest:
     - name: zmk
       # AJ's fork, branch `mouse-8-buttons`: zmkfirmware main 484a054 (same
       # base as the Imprint) + an 8-button mouse HID descriptor, so the
-      # dongle's BLE mouse buttons 6-8 reach macOS natively. Re-pair BLE hosts
-      # after flashing (cached 5-button report map). Bump deliberately.
+      # dongle's BLE mouse buttons 6-8 reach macOS natively (re-pair BLE hosts
+      # after flashing: cached 5-button report map) + split central retries a
+      # failed scan start (upstream stuck after one failure, e.g. while the
+      # mouse host's own scan held the scanner). Bump deliberately.
       remote: chowdhuryaj
-      revision: c1f8bf0690bb21863f00042f302d85d9ea5aa85d
+      revision: dc42f15c80d3568ba4debaba279685178bc9e220
       import: app/west.yml
 
     # The TOTEM shield is VENDORED under boards/shields/totem (MIT,
@@ -108,7 +110,7 @@ manifest:
     # a branch push must not change the image. Bump deliberately.
     - name: zmk-ble-mouse-host
       remote: chowdhuryaj
-      revision: f63648119e1a1c3b666baa62e1d99d443f0657b4
+      revision: 79ec7d98295c75e0ae3b240b7d013330e716d154
 
   self:
     path: config
