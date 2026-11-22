@@ -61,11 +61,12 @@ Side effects of buttons being keys:
   (Cmd+click). A click pressed while any hold-tap is undecided waits for that
   decision, as a key would.
 - Flask's key-state HUD (channel `0x23`) shows them as positions 38-45.
-- Flask hold-tap virtual slots are numbered 38-50 (`flask_holdtap_defaults`
-  in the keymap). On the dongle 38-45 are now also real positions: a hold-tap
-  bound on a mouse key without its own `slot` uses the virtual slot with that
-  number, and the app's hold-tap list shows slots 38-45 as keys. Defaults bind
-  no hold-tap there.
+- Flask hold-tap virtual slots are numbered 46-58 (`flask_holdtap_defaults`
+  in the keymap), above the mouse keys, so slots 38-45 are the mouse keys'
+  own timing on the dongle. They were 38-50 before 2026-11-22: saved timings
+  for the old numbers no longer match, so flash with `totem_settings_reset`
+  first (the dongle flash order already does). On a non-dongle central
+  (keymap length 38), slots 38-45 exist but nothing reads them.
 
 ### Studio physical layout (dongle)
 

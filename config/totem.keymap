@@ -674,17 +674,17 @@
         /* Every hold-tap the keymap binds runs on the flask engine: two
          * hold-tap engines side by side lose keys (a core hold-tap replays
          * past the flask listener). These replace the bound core &lt / &mt /
-         * as_ht and read VIRTUAL slots (38+) instead of a key position, so
+         * as_ht and read VIRTUAL slots (46+) instead of a key position, so
          * a combo never borrows a thumb's timing. Defaults = the core values
          * they replace (flask_holdtap_defaults below). The core nodes stay
          * defined, unbound, for Studio. flt_ctl = base middle thumbs 33 / 36
-         * (&flt_ctl L_NAV R / SPACE), both on slot 38. */
+         * (&flt_ctl L_NAV R / SPACE), both on slot 46. */
         flt_ctl: flt_ctl {
             compatible = "zmk,behavior-flask-hold-tap";
             #binding-cells = <2>;
             display-name = "Layer-Tap Navigation (live)";
             bindings = <&mo>, <&kp>;
-            slot = <38>;
+            slot = <46>;
         };
 
         flt_fn: flt_fn {
@@ -692,7 +692,7 @@
             #binding-cells = <2>;
             display-name = "Layer-Tap Function (live)";
             bindings = <&mo>, <&kp>;
-            slot = <39>;
+            slot = <47>;
         };
 
         fmt_copy: fmt_copy {
@@ -700,7 +700,7 @@
             #binding-cells = <2>;
             display-name = "Mod-Tap copy/cut combo (live)";
             bindings = <&kp>, <&kp>;
-            slot = <40>;
+            slot = <48>;
         };
 
         fmt_undo: fmt_undo {
@@ -708,7 +708,7 @@
             #binding-cells = <2>;
             display-name = "Mod-Tap undo/redo combo (live)";
             bindings = <&kp>, <&kp>;
-            slot = <41>;
+            slot = <49>;
         };
 
         fmt_nav: fmt_nav {
@@ -716,7 +716,7 @@
             #binding-cells = <2>;
             display-name = "Mod-Tap Fn arrows (live)";
             bindings = <&kp>, <&kp>;
-            slot = <42>;
+            slot = <50>;
         };
 
         fas_ht: fas_ht {
@@ -724,12 +724,12 @@
             #binding-cells = <2>;
             display-name = "Autoshift (live)";
             bindings = <&shift>, <&kp>;
-            slot = <43>;
+            slot = <51>;
         };
 
         /* Tap-leaning layer hold-taps, Studio-assignable: &ht_sdel <layer> 0
          * and &ht_rep <layer> 0 (param2 is a dummy; the tap binding takes
-         * no cell). Flask engine, virtual slots 44 / 45: 280 ms term,
+         * no cell). Flask engine, virtual slots 52 / 53: 280 ms term,
          * tap-preferred, quick-tap 400 ms, prior-idle 150 ms. First press
          * held past 280 ms = layer; a tap = Super Delete / Repeat; a press
          * within 400 ms of the last press of the same key is a forced tap
@@ -740,16 +740,16 @@
             #binding-cells = <2>;
             display-name = "Super Delete / Layer";
             bindings = <&mo>, <&sdel_td>;
-            slot = <44>;
+            slot = <52>;
         };
 
-        /* Same timing as ht_sdel, tap = Repeat (virtual slot 45). */
+        /* Same timing as ht_sdel, tap = Repeat (virtual slot 53). */
         ht_rep: ht_rep {
             compatible = "zmk,behavior-flask-hold-tap";
             #binding-cells = <2>;
             display-name = "Repeat / Layer";
             bindings = <&mo>, <&key_repeat>;
-            slot = <45>;
+            slot = <53>;
         };
 
         /* Same timing as ht_sdel, tap = runtime adaptive key (virtual slot
@@ -760,24 +760,24 @@
             #binding-cells = <2>;
             display-name = "Adaptive Key / Layer";
             bindings = <&mo>, <&fak>;
-            slot = <47>;
+            slot = <55>;
         };
 
         /* Mouse layer key: tap = toggle L_MOUSE, hold = momentary L_MOUSE
-         * (&ht_mouse L_MOUSE L_MOUSE). Flask engine, virtual slot 46:
+         * (&ht_mouse L_MOUSE L_MOUSE). Flask engine, virtual slot 54:
          * balanced, 200 ms term, no quick-tap, no prior-idle. */
         ht_mouse: ht_mouse {
             compatible = "zmk,behavior-flask-hold-tap";
             #binding-cells = <2>;
             display-name = "Mouse Layer";
             bindings = <&mo>, <&tog>;
-            slot = <46>;
+            slot = <54>;
         };
 
         /* Mouse-layer speed thumbs: hold = speed layer, tap = the key that
          * thumb taps on Base (F18 / R / Super Delete | Repeat / Space /
          * Adaptive Key), so the pinky never has to relearn Space. All four
-         * share virtual slot 48: hold-preferred, 200 ms term, quick-tap 150,
+         * share virtual slot 56: hold-preferred, 200 ms term, quick-tap 150,
          * prior-idle 0. Any other key pressed while the thumb is down = hold
          * at once (hold a speed thumb, press move/scroll, the speed applies
          * immediately); a lone tap = the tap key. Usage: &mlt <layer> <key>,
@@ -788,7 +788,7 @@
             #binding-cells = <2>;
             display-name = "Mouse Layer-Tap";
             bindings = <&mo>, <&kp>;
-            slot = <48>;
+            slot = <56>;
         };
 
         msdel: msdel {
@@ -796,7 +796,7 @@
             #binding-cells = <2>;
             display-name = "Mouse Hold / Super Delete";
             bindings = <&mo>, <&sdel_td>;
-            slot = <48>;
+            slot = <56>;
         };
 
         mrep: mrep {
@@ -804,7 +804,7 @@
             #binding-cells = <2>;
             display-name = "Mouse Hold / Repeat";
             bindings = <&mo>, <&key_repeat>;
-            slot = <48>;
+            slot = <56>;
         };
 
         mfak: mfak {
@@ -812,11 +812,11 @@
             #binding-cells = <2>;
             display-name = "Mouse Hold / Adaptive Key";
             bindings = <&mo>, <&fak>;
-            slot = <48>;
+            slot = <56>;
         };
 
         /* Leader / Shift: tap = Leader, hold = Shift (&lsft LSHFT 0; param2
-         * is a dummy, &leader takes no cell). Virtual slot 49: balanced,
+         * is a dummy, &leader takes no cell). Virtual slot 57: balanced,
          * 200 ms term, quick-tap 150, prior-idle 150. Not bound anywhere;
          * assign from Totem-Flask. */
         lsft: lsft {
@@ -824,12 +824,12 @@
             #binding-cells = <2>;
             display-name = "Leader / Shift";
             bindings = <&kp>, <&leader>;
-            slot = <49>;
+            slot = <57>;
         };
 
         /* Mouse-layer Neru keys with a modifier on hold (so Cmd/Shift/etc.
          * + click still works on L_MOUSE): tap = the Neru action, hold =
-         * the modifier. Both share virtual slot 50: balanced, 200 ms term,
+         * the modifier. Both share virtual slot 58: balanced, 200 ms term,
          * quick-tap 150, prior-idle 0. The hold side is a plain &kp, so it
          * never runs the macro's &to L_BASE; only a tap does. Usage:
          * &nmod_h LCTRL 0 (neru_hints takes no cell, param2 is a dummy),
@@ -839,7 +839,7 @@
             #binding-cells = <2>;
             display-name = "Mod / Neru Hints";
             bindings = <&kp>, <&neru_hints>;
-            slot = <50>;
+            slot = <58>;
         };
 
         nmod_m: nmod_m {
@@ -847,7 +847,7 @@
             #binding-cells = <2>;
             display-name = "Mod / Neru Menu Key";
             bindings = <&kp>, <&neru_m>;
-            slot = <50>;
+            slot = <58>;
         };
 
         sl_mo: sl_mo {
@@ -1455,7 +1455,7 @@
     };
 
     /* Boot timing for the flask_holdtap slots (0-37 = key positions,
-     * 38-50 = virtual slots), key slots seeded from the hm_* nodes these
+     * 46-58 = virtual slots, above the dongle's mouse keys 38-45), key slots seeded from the hm_* nodes these
      * keys used before (280 / quick-tap 175 / prior-idle 150; GUI keys
      * tap-preferred, the rest balanced). Unlisted slots boot at 200 /
      * balanced / 0 / 0. tapping-term-ms defaults to 200 here. App edits saved
@@ -1484,46 +1484,46 @@
          * 200 tap-preferred quick-tap 150 (the &mt override up top);
          * as_ht = 200 tap-preferred. */
         v_nav_lt {
-            key-positions = <38>;
+            key-positions = <46>;
             display-name = "Navigation layer-tap (flt_ctl)";
             flavor = "tap-preferred";
         };
 
         v_fn_combo {
-            key-positions = <39>;
+            key-positions = <47>;
             display-name = "Function layer-tap (flt_fn)";
             flavor = "tap-preferred";
         };
 
         v_copy_combo {
-            key-positions = <40>;
+            key-positions = <48>;
             display-name = "Copy/cut combo (11+12)";
             quick-tap-ms = <150>;
             flavor = "tap-preferred";
         };
 
         v_undo_combo {
-            key-positions = <41>;
+            key-positions = <49>;
             display-name = "Undo/redo combo (10+11)";
             quick-tap-ms = <150>;
             flavor = "tap-preferred";
         };
 
         v_fn_arrows {
-            key-positions = <42>;
+            key-positions = <50>;
             display-name = "Fn arrows (Fn 6-9)";
             quick-tap-ms = <150>;
             flavor = "tap-preferred";
         };
 
         v_autoshift {
-            key-positions = <43>;
+            key-positions = <51>;
             display-name = "Autoshift digits";
             flavor = "tap-preferred";
         };
 
         v_sdel_layer {
-            key-positions = <44>;
+            key-positions = <52>;
             display-name = "Super Delete / Layer";
             tapping-term-ms = <280>;
             quick-tap-ms = <400>;
@@ -1532,7 +1532,7 @@
         };
 
         v_rep_layer {
-            key-positions = <45>;
+            key-positions = <53>;
             display-name = "Repeat / Layer";
             tapping-term-ms = <280>;
             quick-tap-ms = <400>;
@@ -1541,7 +1541,7 @@
         };
 
         v_mouse_layer {
-            key-positions = <46>;
+            key-positions = <54>;
             display-name = "Mouse Layer";
             tapping-term-ms = <200>;
             quick-tap-ms = <0>;
@@ -1550,7 +1550,7 @@
         };
 
         v_fak_layer {
-            key-positions = <47>;
+            key-positions = <55>;
             display-name = "Adaptive Key / Layer";
             tapping-term-ms = <280>;
             quick-tap-ms = <400>;
@@ -1560,7 +1560,7 @@
 
         /* Mouse speed thumbs (mlt / msdel / mrep / mfak share this slot). */
         v_mouse_speed {
-            key-positions = <48>;
+            key-positions = <56>;
             display-name = "Mouse speed thumbs";
             tapping-term-ms = <200>;
             quick-tap-ms = <150>;
@@ -1569,7 +1569,7 @@
         };
 
         v_mouse_neru_mod {
-            key-positions = <50>;
+            key-positions = <58>;
             display-name = "Mouse Neru mod-taps";
             tapping-term-ms = <200>;
             quick-tap-ms = <150>;
@@ -1578,7 +1578,7 @@
         };
 
         v_leader_shift {
-            key-positions = <49>;
+            key-positions = <57>;
             display-name = "Leader / Shift";
             tapping-term-ms = <200>;
             quick-tap-ms = <150>;
@@ -1680,7 +1680,7 @@
          * layer and type the base key (CONFIG_ZMK_FLASK_LAYER_AUTOEXIT).
          * Home row left = firmware middle/right/left click (plain &mkp).
          * Top row left 0-3 are Neru taps with a modifier on hold (&nmod_h /
-         * &nmod_m, slot 50, balanced 200 ms): Ctrl = hints, Alt = grid, Cmd =
+         * &nmod_m, slot 58, balanced 200 ms): Ctrl = hints, Alt = grid, Cmd =
          * rgrid, Shift = scroll mode. Tap = the Neru action; hold a mod then
          * press a click key (e.g. Cmd + LCLK on pos 13).
          * Right hand is WASD-shaped: move on 16/17/18 (left/down/right) with
@@ -1688,7 +1688,7 @@
          * left/right beside move left/right (15/19).
          * Thumbs are stacking speed holds, shared by pointer and scroll, any
          * order (multipliers in the tuning block at the top). Each also taps its
-         * Base key (&mlt / &msdel / &mrep / &mfak, slot 48, hold-preferred 200
+         * Base key (&mlt / &msdel / &mrep / &mfak, slot 56, hold-preferred 200
          * ms: another key pressed while the thumb is down = hold at once; a
          * lone tap = F18 / R / Super Delete | Repeat / Space / Adaptive Key):
          *   32/37 L_SCROLL_SLOW  /3
