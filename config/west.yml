@@ -77,7 +77,7 @@ manifest:
       # both inert where not instantiated. Pinned by SHA so a branch push
       # never changes this image; bump deliberately, together with
       # Cyboard-ZMK (still on 28b8b8b / v19).
-      revision: b4a953180a340716bda6fdde4651226bd989ddd5
+      revision: 2dc150f72d2e2faecae5ae74952c2ffc14bd7a72
 
     - name: zmk-switch-layout
       remote: mctechnology17
@@ -112,7 +112,7 @@ manifest:
     # a branch push must not change the image. Bump deliberately.
     - name: zmk-ble-mouse-host
       remote: chowdhuryaj
-      revision: 79ec7d98295c75e0ae3b240b7d013330e716d154
+      revision: e3b83dfe7eb4bbba246d5a9b57921011efd02030
 
   self:
     path: config

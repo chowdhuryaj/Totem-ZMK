@@ -37,6 +37,8 @@ So out of the box every button does what it did before it was a key. Function
 and Mouse bind them outright instead of `&trans` because they can be latched
 (`smart_layer`, `&tog`), and with `CONFIG_ZMK_FLASK_LAYER_AUTOEXIT` a `&trans`
 press on a latched layer exits it: a click would drop the Mouse layer.
+So a button rebound on Base does not carry to Function and Mouse: rebind it
+there too.
 
 How: `mouse_keys` sits first on `mouse_host_listener`. Each button press or
 release raises `zmk_position_state_changed` for its position (from the system
@@ -110,10 +112,25 @@ DEFT Pro until checked on hardware).
   UUID (`0x1812`). ZMK keyboards and the Endgame trackball advertise the
   Keyboard appearance plus `0x1812`, so they are listed too; the appearance is
   in the result so the app can label them.
-- `&mouse_pair` ("Pair Mouse" macro, Studio-assignable): first device with the
-  Mouse appearance. The overlay no longer sets `pair-name-prefix = "Endgame"`,
-  which made this Endgame-only; the Endgame still pairs from the app list.
+- `&mouse_pair` ("Pair Mouse" macro, Studio-assignable; the way to pair
+  where Flask is unreachable): first device with the Mouse appearance (in
+  the advertisement or the scan response) at RSSI >= -50 dBm, i.e. held
+  next to the dongle (`CONFIG_ZMK_BLE_MOUSE_HOST_PAIR_MIN_RSSI`). Gives up
+  after 60 s (`..._PAIR_TIMEOUT_S`). The bonded mouse is kept aside and comes
+  back on timeout, refusal or a device without HID. A refused pairing ends
+  the attempt (no retry loop). A list scan start cancels it. The overlay no
+  longer sets `pair-name-prefix = "Endgame"`, which made this Endgame-only;
+  the Endgame still pairs from the app list.
 - `&mouse_unpair` ("Unpair Mouse"): forget the mouse and stop reconnecting.
+  During a pairing attempt it only cancels the attempt (old mouse back).
+- A security error on the bonded mouse ends the bond only when the mouse
+  lost its keys (`BT_SECURITY_ERR_PIN_OR_KEY_MISSING`); anything else (a link
+  that dropped before encryption finished) disconnects and reconnects.
+
+Bond slots: `BT_MAX_PAIRED` 10 = 2 halves + the mouse + up to 4 hosts + 2
+phones (9), plus 1 spare. Replacing a mouse holds both bonds until the new
+one is subscribed, so it needs that spare; with every slot used, pairing
+fails and the old mouse stays.
 
 Put the mouse in pairing mode first. Pair only after both halves are
 connected: while the dongle's own scan runs (list scan, 15 s, or a first-match
@@ -142,7 +159,7 @@ Request payload: none.
 | Offset | Field |
 | --- | --- |
 | 0 | state: 0 idle, 1 scanning, 2 connecting, 3 connected |
-| 1 | flags: bit 0 bonded, bit 1 list scan running, bit 2 report map has a wheel, bit 3 report map has AC Pan (tilt / horizontal wheel); bits 2-3 are 0 until connected |
+| 1 | flags: bit 0 bonded, bit 1 list scan running, bit 2 report map has a wheel, bit 3 report map has AC Pan (tilt / horizontal wheel), bit 4 list scan waiting for the scanner (ZMK's split central is scanning for a disconnected half; press a key on each half); bits 2-3 are 0 until connected |
 | 2 | battery % 0-100, `0xFF` unknown (no BAS, or not read yet) |
 | 3 | buttons in the mouse's report map, 0 unknown (not connected). Above 8, only buttons 1-8 reach the keymap (the dongle logs a warning) |
 | 4 | address type (0 public, 1 random) |
@@ -168,7 +185,9 @@ GET reply: `[running, count]`: running = list scan on (0/1), count = devices
 listed so far (0-8). The list stays readable after the scan ends, until the
 next scan start.
 
-SET payload: `[1]` start (clears the list, runs 15 s), `[0]` stop now.
+SET payload: `[1]` start (clears the list, restarts the scan, runs 15 s;
+cancels a first-match scan), `[0]` stop now. While a half is disconnected the
+scan waits for the scanner (status flags bit 4) and lists nothing.
 Starting cancels a pending reconnect to the bonded mouse until the scan ends;
 a connected mouse stays connected.
 
@@ -204,14 +223,23 @@ While trying: state 2, flags bit 0 (bonded) clear, address = the target. The
 old bond is kept meanwhile (also across a reboot). Success: state 3, bonded,
 and the old mouse is unpaired. Failure (5 tries, or the device refuses or has
 no HID service): the old mouse comes back (state 2/3, bonded, its address),
-or with no old mouse, state 0 and address 0.
+or with no old mouse, state 0 and address 0. The old mouse is unpaired only
+once the new one is connected and subscribed. Pairing the address that is
+already bonded starts fresh (its old keys are dropped, no fallback).
 
-Payload `[0xFF]` (no address): first-match pairing, same as `&mouse_pair`;
-this one forgets the old bond at once.
+Payload `[0xFF]` (no address): first-match pairing, same as `&mouse_pair`
+(RSSI gate, 60 s timeout, old bond kept aside as above). While it runs:
+state 1, flags bit 1 clear, bit 0 clear.
 
 ### 0x07 SET unpair
 
 Payload: none. Forget the mouse and stop reconnecting (state idle).
+
+During a pairing attempt (first-match scan, state 1 with flags bit 1 clear;
+or a pair by index still trying, state 2 with bit 0 clear) it cancels the
+attempt instead, the same as the 60 s timeout: our scan stops, a mouse set
+aside comes back (bonded again, state 2/3), else state 0. The Prospector's
+PAIR MOUSE box closes. This is the app's "Cancel pairing".
 
 ### Example: scan and pair
 

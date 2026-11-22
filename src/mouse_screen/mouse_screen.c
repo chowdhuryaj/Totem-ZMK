@@ -89,7 +89,13 @@ static void draw_fn(struct k_work *work)
 		build();
 	}
 
-	if (s.state == ZMK_BLE_MOUSE_HOST_SCANNING) {
+	if (s.scan_waiting) {
+		/* ZMK's split central holds the scanner for a disconnected half;
+		 * the list scan starts once both halves are back. */
+		body = "Waiting for both halves to connect\n(press a key on each)";
+	} else if (s.state == ZMK_BLE_MOUSE_HOST_SCANNING) {
+		/* Ends by itself: a first-match scan times out (module
+		 * PAIR_TIMEOUT_S), a list scan after 15 s. */
 		body = s.listing ? "Put DEFT Pro in pairing mode, then pick it in Totem-Flask"
 				 : "Put DEFT Pro in pairing mode";
 	} else if (s.state == ZMK_BLE_MOUSE_HOST_CONNECTING && !s.bonded) {
