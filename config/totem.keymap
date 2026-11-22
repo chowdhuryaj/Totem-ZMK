@@ -67,7 +67,7 @@
 #define L_NUMBER  3
 #define L_NUMPAD  4   /* removed on AJ's board in Studio 2026-10-03, unused; kept so IDs 5-10 don't shift */
 #define L_MOUSE      5
-#define L_MOUSE_SLOW 6
+#define L_DRAG_SCROLL 6  /* was spare "Spare 6" (mouse_slow node); dongle: mouse_host_listener override */
 #define L_SCROLL_SLOW 7   /* reused spare1 */
 #define L_SCROLL_FAST 8   /* reused spare2 */
 #define L_AMP_UP      9   /* reused spare3 */
@@ -1714,9 +1714,17 @@
             >;
         };
 
-        /* Layers 6 and 9 are unused spares (IDs kept so the rest don't shift). */
+        /* Drag Scroll (layer 6, was an unused spare; node name kept so the
+         * id stays put). While on, the paired mouse's motion scrolls instead
+         * of moving the pointer (dongle only: the totem_dongle.overlay
+         * listener override; on the halves it is an inert &trans layer).
+         * Bind &mo L_DRAG_SCROLL (hold) or &tog L_DRAG_SCROLL (toggle) to
+         * any key or mouse button in Studio / Totem-Flask. All &trans: a
+         * toggled Drag Scroll exits on the next key or click that is &trans
+         * here (CONFIG_ZMK_FLASK_LAYER_AUTOEXIT); its own &tog key re-pressed
+         * toggles it off. Layer 9 is the one unused spare left. */
         mouse_slow {
-            display-name = "Spare 6";
+            display-name = "Drag Scroll";
             bindings = <
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans
         &trans  &trans  &trans  &trans  &trans    &trans  &trans  &trans  &trans  &trans

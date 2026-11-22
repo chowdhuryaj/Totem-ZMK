@@ -241,6 +241,7 @@ Payload: none. Forget the mouse and stop reconnecting (state idle).
 
 | Processor | Flask channel | Boot default |
 | --- | --- | --- |
+| `flask_smooth` (pointer smoothing, EMA) | `0x13` | off (`start-disabled`) |
 | `flask_accel` (pointer acceleration) | `0x10` | off (`start-disabled`) |
 | `mh_wheel_scaler` / `mh_hwheel_scaler` (flask_scrollscale on the wheel) | `0x29` scroll speed | 100% = 1:1; range x0.25-x4 |
 | `flask_scrollsnap` (wheel axis snap/lock) | `0x26` | off (`start-disabled`) |
@@ -249,6 +250,87 @@ Each is one setting for the whole board (the modules keep a single global), and
 on the dongle only this listener uses them, so the app's existing panels for
 those channels tune the mouse. Save on each channel persists it. Channel `0x2D`
 (mouse keys) is unrelated: it tunes `&mmv`/`&msc`.
+
+## Drag scroll
+
+While layer 6 "Drag Scroll" (`L_DRAG_SCROLL`) is on, the mouse's motion
+scrolls instead of moving the pointer. Buttons and the wheel work as usual.
+
+Assign it in Studio or Totem-Flask to any Totem key or mouse button
+(positions 38-45):
+
+- Hold: `&mo L_DRAG_SCROLL` (Studio: "Momentary Layer", layer Drag Scroll).
+- Toggle: `&tog L_DRAG_SCROLL` (Studio: "Toggle Layer", Drag Scroll). Pressing
+  the same key again turns it off. Any other key or click that is `&trans` on
+  Drag Scroll (all of them) also turns it off and then acts as usual
+  (`CONFIG_ZMK_FLASK_LAYER_AUTOEXIT`). Modifiers and layer keys do not.
+
+Nothing is bound by default. No named macros: a toggle macro would break under
+autoexit (the macro is not a layer key, so re-pressing it would exit the layer
+and then toggle it straight back on).
+
+How: a `drag_scroll` child of `mouse_host_listener` (layers = <6>,
+process-next) runs `flask_scroll` first. It turns X/Y into wheel notches,
+emitted from its own node through `drag_scroll_listener`, and zeroes them in
+the mouse chain. Smoothing and accel skip zero values. `process-next` keeps
+`mouse_keys` on the button events, so a mouse button holding the layer
+releases it. Scroll speed is set only by the divisors below, not by channel
+`0x29` (that scales the physical wheel).
+
+Vertical priority: with `h-bias-pct` above 0, drag scroll is single-axis.
+Horizontal wins only while recent sideways counts exceed that percent of the
+recent vertical counts, and at least one horizontal notch of travel has
+built up. Otherwise vertical wins and X is dropped (and vice versa). The
+window is the last ~2 notches of travel per axis, reset after a 200 ms pause.
+Host check: `tests/pointer_host` in zmk-flask-modules (`make`).
+
+### Flask channel 0x15 (drag scroll, `flask_scroll`)
+
+u16 values, GET/SET, SAVE persists all of them ("flask/scroll", blob v2).
+
+| Id | Value | Totem default | Range |
+| --- | --- | --- | --- |
+| `0x01` | horizontal divisor (ball counts per notch; higher = less sensitive) | 32 | 1-10000 |
+| `0x02` | vertical divisor | 16 | 1-10000 |
+| `0x03` | invert vertical (natural scrolling), 0/1 | 0 | |
+| `0x06` | emit interval, ms | 16 | 1-1000 |
+| `0x07` | max notches per interval, per axis | 3 | 1-127 |
+| `0x0A` | invert horizontal, 0/1 | 0 | |
+| `0x0B` | vertical priority, percent; 0 = off (both axes at once) | 300 | 0-1000 |
+
+`0x0B` is new in proto v24 (ZMK line only). Same ids as the QMK families'
+drag scroll for `0x01`-`0x07`, so the app's Drag scroll card fits (per-axis
+divisors, emit window, invert X). It has no control for `0x0B` yet.
+
+Why these defaults: the DEFT Pro reports about 59 counts/mm at 1500 cpi, so 16
+counts is one notch per ~0.3 mm vertically; horizontal at 32 is half as
+sensitive. 300 means sideways must be 3x the vertical motion (within ~18
+degrees of horizontal) before it scrolls sideways, so drift while rolling
+vertically never does. Turning sideways mid-roll costs about 3 notches of
+sideways travel before it switches. Guesses until checked on the mouse.
+
+### Flask channel 0x13 (pointer smoothing, `flask_smooth`)
+
+Integer port of drashna's `pointing_device_smoothing`, same wire as the QMK
+families. Per axis: `ema = f * in + (1 - f) * ema`, rounding carry kept,
+carry dropped on reversal, reset after the timeout. Runs before accel.
+
+| Id | Value | Default | Range |
+| --- | --- | --- | --- |
+| `0x01` | enabled, 0/1 | 0 | |
+| `0x02` | factor x100: weight of each new sample. 100 = raw, lower = smoother and laggier | 40 | 1-100 |
+| `0x03` | reset timeout, ms | 200 | 0-1000 |
+
+SAVE persists ("flask/smooth"). Probe: proto >= 24, then a GET answers
+(unhandled where not compiled). The web app's Smoothing card hint says
+"0 = raw, 1 = heavy": that is backwards (the native Adept app has it right).
+
+Options considered: kaievns/zmk-trackball-processors (2026-06, 1 star):
+a one-euro filter plus a response curve. No LICENSE file (README says MIT),
+DT-only parameters (no Flask tuning), and the curve's lookup tables take
+~5.6 KB RAM, which the dongle does not have. Its one-euro filter is the better
+algorithm if EMA lag bothers on hardware; porting it into flask_smooth as a
+mode would keep the 0x13 wire.
 
 ## Needs a hardware check
 
@@ -264,3 +346,9 @@ those channels tune the mouse. Save on each channel persists it. Channel `0x2D`
 - Battery: whether the mouse has BAS and allows reading it.
 - Drag (hold button 1, move) and Cmd+click with a home-row mod.
 - Both halves still reconnect after a list scan.
+- Drag scroll: direction (`0x03` / `0x0A` if inverted), divisors 16/32, that
+  vertical rolls never scroll sideways and a clear sideways roll does, and
+  that a mouse button bound to `&mo L_DRAG_SCROLL` releases the layer.
+- Smoothing: whether it helps at all on this sensor (it adds lag).
+- AJ's Studio-saved keymap may still name layer 6 "Spare 6" (Studio keeps its
+  own layer names) or have bindings on it; rename / clear it there.

@@ -72,10 +72,12 @@ manifest:
       # mousekeys, proto v23: tap dance holds, release window, eager) + one
       # weak hook, flask_proto_ext_handle(), so this repo owns the mouse host
       # channel 0x2E (docs/mouse-host.md). Protocol otherwise unchanged; the
-      # Imprint can stay on unify. Pinned by SHA so a branch push never
-      # changes this image; bump deliberately, together with Cyboard-ZMK
-      # (still on 28b8b8b / v19).
-      revision: 5e4451b70e36b76cf5ac9160e70d114316fbcf25
+      # Imprint can stay on unify. 2026-11-22 (proto v24): + flask_scroll
+      # vertical priority (0x15 value 0x0B) and flask_smooth (channel 0x13),
+      # both inert where not instantiated. Pinned by SHA so a branch push
+      # never changes this image; bump deliberately, together with
+      # Cyboard-ZMK (still on 28b8b8b / v19).
+      revision: b4a953180a340716bda6fdde4651226bd989ddd5
 
     - name: zmk-switch-layout
       remote: mctechnology17

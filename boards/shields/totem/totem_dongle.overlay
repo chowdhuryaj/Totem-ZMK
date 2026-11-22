@@ -49,6 +49,8 @@
 #include <zephyr/dt-bindings/dt-util.h>
 #include <flask_accel.dtsi>
 #include <flask_scrollsnap.dtsi>
+#include <flask_scroll.dtsi>
+#include <flask_smooth.dtsi>
 
 /* Live pointer tuning for the paired mouse (Flask, docs/mouse-host.md).
  * Both boot off so a fresh dongle moves exactly as before; the app turns
@@ -60,6 +62,24 @@
 
 &flask_scrollsnap {
     start-disabled;
+};
+
+/* Pointer smoothing (Flask 0x13, EMA). Boots off: smoothing adds lag, and
+ * the mouse already filters its own sensor. */
+&flask_smooth {
+    start-disabled;
+};
+
+/* Drag scroll (Flask 0x15, docs/mouse-host.md): ball counts per notch.
+ * Elecom DEFT Pro at 1500 cpi = ~59 counts/mm, so 16 = a notch per ~0.3 mm
+ * of ball surface vertically; horizontal at 32 is half as sensitive.
+ * h-bias-pct 300: sideways scrolls only while it is 3x the vertical motion
+ * (within ~18 deg of horizontal), so a vertical roll never drifts sideways.
+ * Calibration knobs, first hardware check: all three are live in the app. */
+&flask_scroll {
+    divisor-x = <32>;
+    divisor-y = <16>;
+    h-bias-pct = <300>;
 };
 
 /* totem.dtsi's kscan0 has no col-gpios here (the pins belong to the
@@ -144,12 +164,31 @@
     mouse_host_listener {
         compatible = "zmk,input-listener";
         device = <&mouse_host>;
-        input-processors = <&mouse_keys &flask_accel &mh_wheel_scaler 4 4
+        input-processors = <&mouse_keys &flask_smooth &flask_accel &mh_wheel_scaler 4 4
                             &mh_hwheel_scaler 4 4 &flask_scrollsnap>;
+
+        /* Drag scroll: while layer 6 (L_DRAG_SCROLL, config/totem.keymap) is
+         * on, flask_scroll turns X/Y into wheel notches and zeroes them
+         * here. process-next is load-bearing: an override without it skips
+         * the base chain (app/src/pointing/input_listener.c
+         * filter_with_input_config()), so mouse_keys would miss button
+         * events and a mouse button holding this layer could never release
+         * it. The zeroed X/Y then pass the base chain as no-ops. */
+        drag_scroll {
+            layers = <6>;
+            process-next;
+            input-processors = <&flask_scroll>;
+        };
         /* Calibration knob, first hardware check: a mouse may send hi-res
          * wheel values that this dongle reads as whole detents, so scrolling
          * runs far too fast. Flask scroll speed reaches x0.25; past that,
          * raise the divisors (e.g. 4 60 for a x15 wheel). */
+    };
+
+    /* flask_scroll re-emits its notches from its own device node. */
+    drag_scroll_listener {
+        compatible = "zmk,input-listener";
+        device = <&flask_scroll>;
     };
 
     behaviors {
