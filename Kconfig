@@ -69,3 +69,8 @@ config TOTEM_MOUSE_HOST_FLASK
 	bool "Flask channel 0x2E: mouse host status, scan, pair"
 	default y
 	depends on ZMK_BLE_MOUSE_HOST && ZMK_FLASK_PROTO
+
+config TOTEM_MOUSE_SCREEN
+	bool "Prospector screen: BLE mouse status and pairing help"
+	default y
+	depends on ZMK_BLE_MOUSE_HOST && ZMK_DISPLAY && SHIELD_PROSPECTOR_ADAPTER && INPUT
