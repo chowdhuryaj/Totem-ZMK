@@ -263,7 +263,7 @@ with no console.
 | --- | --- | --- | --- |
 | 1 | connect create failed (`bt_conn_le_create`) | -errno | 1 |
 | 2 | connection failed, or link dropped before encryption | HCI reason (e.g. 0x02 create timed out, 0x3E failed to establish, 0x08 supervision timeout, 0x13 remote closed) | 1 = failed to establish, 2 = dropped before encryption |
-| 3 | security / pairing failed | `enum bt_security_err` (1 auth fail, 2 PIN/key missing, 3 OOB, 4 auth requirement, 5 pair not supported, 6 pair not allowed, 7 invalid param, 8 unspecified) | 1 = fresh pairing, 0 = bonded mouse |
+| 3 | security / pairing failed | `enum bt_security_err` (1 auth fail, 2 PIN/key missing, 3 OOB, 4 auth requirement, 5 pair not supported, 6 pair not allowed, 7 invalid param, 8 key rejected, 9 unspecified) | 1 = fresh pairing, 0 = bonded mouse |
 | 4 | no HID service | 0, or -errno when discovery could not start | 0 = no HID service, 1 = discovery failed |
 | 5 | report map | ATT error, or -errno | 0 = ATT error on read, 1 = read but no X/Y (boot fallback, code 0), 2 = read could not start |
 | 6 | subscribe failed | -errno | subscription index |
