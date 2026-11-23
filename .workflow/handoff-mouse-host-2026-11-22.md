@@ -40,3 +40,10 @@ Merged into mouse-remap: Totem-ZMK branches `mouse-screen` and `drag-scroll` (ca
 - F13-F15 placeholders; AJ to pick PC keys for Fn1-3.
 - flask-web main checkout `mouse-tab.js:302` smoothing hint is backwards (not this branch).
 - Merge plan for mouse-remap into the flashed lineage is AJ's call.
+
+## 2026-11-22 19:28 state
+- Flashed: all boards on CI 45085256238 (dongle no-ALS); halves + Mac BLE + Flask over BLE work.
+- DEFT Pro: scan sees it (-35 dBm); Pair fails ("Pair failed").
+- BROKEN, do not flash: CI 45090410838 hangs at boot (blank screen, no USB). Was the fix candidate: CI 45090410838 (Totem-ZMK 90bb0eb/6dbcc91, ZMK fork d92254f, module aa80aae): legacy pairing allowed for the mouse link (SC-only stays for hosts), Flask SET queue, GET 0x0A last error. UF2: Flask-Svalboard/totem-fw-45090410838/firmware/totem_dongle_no_als.uf2. No settings_reset needed.
+- App c6ddcb6 (flask-web-mouse) decodes 0x0A; installed 19:42.
+- Branch mouse-debug (USB-log dongle) does not enumerate; abandon it.

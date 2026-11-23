@@ -118,12 +118,18 @@ include:
   # pairing failed, 2026-11-22). Hosts stay LE Secure Connections only: the
   # ZMK fork's auth_pairing_accept() refuses non-SC pairing on host links
   # (zmk mouse-8-buttons d92254f). The halves keep SC-only.
+  # MAIN_STACK_SIZE=2048 (was 1024): SC=n makes Zephyr's stored bond keys
+  # longer, so the first boot over SC-only bonds deletes them all inside
+  # settings_load() in main(), which overflowed the 1 KB main stack: backlight
+  # on, blank screen, no USB (2026-11-22, fixed and confirmed on hardware).
+  # Bonds don't carry across SC-only <-> SC=n images: totem_settings_reset
+  # on all three boards when switching either way.
   # LV_Z_VDB_SIZE=25: the first CI build overflowed RAM by 34,570 B (run
   # 37823848051). Prospector double-buffers 50% of a 240x280x16bpp screen
   # (134 KB); 25% frees ~67 KB (the fix the Prospector README names).
   - board: xiao_ble//zmk
     shield: totem_dongle prospector_adapter raw_hid_adapter
-    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25 -DCONFIG_BT_SMP_SC_PAIR_ONLY=n
+    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25 -DCONFIG_BT_SMP_SC_PAIR_ONLY=n -DCONFIG_MAIN_STACK_SIZE=2048
     artifact-name: totem_dongle
   # LEFT half as a peripheral for dongle mode: the normal left image is the
   # central, so only the role flips (ZMK dongle guide). Named "Totem L" like
@@ -139,5 +145,5 @@ include:
   # if the screen stays dark or never dims. Fixed brightness 80, as the guide.
   - board: xiao_ble//zmk
     shield: totem_dongle prospector_adapter raw_hid_adapter
-    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25 -DCONFIG_BT_SMP_SC_PAIR_ONLY=n -DCONFIG_PROSPECTOR_USE_AMBIENT_LIGHT_SENSOR=n -DCONFIG_PROSPECTOR_FIXED_BRIGHTNESS=80
+    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25 -DCONFIG_BT_SMP_SC_PAIR_ONLY=n -DCONFIG_MAIN_STACK_SIZE=2048 -DCONFIG_PROSPECTOR_USE_AMBIENT_LIGHT_SENSOR=n -DCONFIG_PROSPECTOR_FIXED_BRIGHTNESS=80
     artifact-name: totem_dongle_no_als
