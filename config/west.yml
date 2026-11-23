@@ -24,9 +24,11 @@ manifest:
       # failed scan start (upstream stuck after one failure, e.g. while the
       # mouse host's own scan held the scanner) + BT_SMP_SC_PAIR_ONLY as
       # imply with hosts kept SC-only in pairing_accept (legacy-pairing
-      # mice on the dongle). Bump deliberately.
+      # mice on the dongle) + Studio falls back to the first built transport
+      # when none matches the output (dongle on USB: BLE Studio). Bump
+      # deliberately.
       remote: chowdhuryaj
-      revision: d92254fa4d215f55366fd88a728e3729a5597522
+      revision: 78cace17fbb0062222d6bc9a1fe5e9db81dbea56
       import: app/west.yml
 
     # The TOTEM shield is VENDORED under boards/shields/totem (MIT,
