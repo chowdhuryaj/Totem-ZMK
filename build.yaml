@@ -7,7 +7,9 @@
 #
 # board: [ "nice_nano_v2" ]
 # shield: [ "corne_left", "corne_right" ]
-# include:
+# (template comment trimmed)
+---
+include:
   # BISECT ONLY (branch mouse-bisect): boot hang of the SC_PAIR_ONLY=n image.
   # B = current code, SC-only on (no reset needed). C = SC-only off + 2 KB main stack (settings_reset all 3 first).
   - board: xiao_ble//zmk
