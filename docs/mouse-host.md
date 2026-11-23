@@ -123,6 +123,10 @@ DEFT Pro until checked on hardware).
   the Endgame still pairs from the app list.
 - `&mouse_unpair` ("Unpair Mouse"): forget the mouse and stop reconnecting.
   During a pairing attempt it only cancels the attempt (old mouse back).
+- Legacy pairing: the dongle pairs mice that lack LE Secure Connections
+  (`CONFIG_BT_SMP_SC_PAIR_ONLY=n` on the dongle builds). Hosts are still
+  refused anything but Secure Connections (ZMK fork `auth_pairing_accept()`),
+  the phone remote still needs L4, and the halves keep SC-only.
 - A security error on the bonded mouse ends the bond only when the mouse
   lost its keys (`BT_SECURITY_ERR_PIN_OR_KEY_MISSING`); anything else (a link
   that dropped before encryption finished) disconnects and reconnects.
@@ -146,8 +150,9 @@ cmd `0xFF`. There is no SAVE: the bond saves itself. The payload here is
 **bytes at fixed offsets** (like channel `0x23`), not a u16 at bytes 0-1. Bytes
 past the listed fields are 0. Probe: GET `0x01`; `0xFF` = no mouse host.
 
-SETs start Bluetooth work later on the system workqueue; their reply is the
-request echoed back. Poll GET `0x01` / GET `0x03` for the outcome (every
+SETs start Bluetooth work later on the system workqueue, in the order sent
+(up to 4 queued; a 5th answers `0xFF`); their reply is the request echoed
+back. Poll GET `0x01` / GET `0x03` for the outcome (every
 ~250-500 ms is plenty).
 
 Payload offsets below are from payload byte 0 (frame byte 3).
@@ -240,6 +245,38 @@ or a pair by index still trying, state 2 with bit 0 clear) it cancels the
 attempt instead, the same as the 60 s timeout: our scan stops, a mouse set
 aside comes back (bonded again, state 2/3), else state 0. The Prospector's
 PAIR MOUSE box closes. This is the app's "Cancel pairing".
+
+### 0x0A GET last error
+
+Request payload: none. The last pairing or connection failure, kept until the
+next one (never cleared, also not by a success). For diagnosis on a dongle
+with no console.
+
+| Offset | Field |
+| --- | --- |
+| 0 | phase (0 = none since boot) |
+| 1 | code (per phase, below) |
+| 2 | code2 (per phase, below) |
+| 3-4 | age in seconds, u16 big-endian, capped at 65535 (0 when phase 0) |
+
+| Phase | Meaning | code | code2 |
+| --- | --- | --- | --- |
+| 1 | connect create failed (`bt_conn_le_create`) | -errno | 1 |
+| 2 | connection failed, or link dropped before encryption | HCI reason (e.g. 0x02 create timed out, 0x3E failed to establish, 0x08 supervision timeout, 0x13 remote closed) | 1 = failed to establish, 2 = dropped before encryption |
+| 3 | security / pairing failed | `enum bt_security_err` (1 auth fail, 2 PIN/key missing, 3 OOB, 4 auth requirement, 5 pair not supported, 6 pair not allowed, 7 invalid param, 8 unspecified) | 1 = fresh pairing, 0 = bonded mouse |
+| 4 | no HID service | 0, or -errno when discovery could not start | 0 = no HID service, 1 = discovery failed |
+| 5 | report map | ATT error, or -errno | 0 = ATT error on read, 1 = read but no X/Y (boot fallback, code 0), 2 = read could not start |
+| 6 | subscribe failed | -errno | subscription index |
+| 7 | timed out | 1 = pair by index gave up, 2 = first-match timeout | tries (5) for 1, else 0 |
+| 8 | pair SET rejected by the address check | 1 = index out of range, 2 = address differs | the index |
+
+Phases 1-2 are recorded only during a pairing attempt, so reconnects to an
+absent bonded mouse do not overwrite a pairing failure. Phases 5-6 do not
+fail a pairing (the mouse may still work); they explain a mouse that pairs
+but does not move or click.
+
+Example: `→ 08 2E 0A` `← 08 2E 0A 03 05 01 00 0C` = security failed, 5 = pair
+not supported, during a fresh pairing, 12 s ago.
 
 ### Example: scan and pair
 

@@ -33,44 +33,63 @@
 #define MH_RESULT_NAME 0x05 /* GET [index, offset] */
 #define MH_PAIR 0x06        /* SET [index, addr type, addr MSB first] | [0xFF] */
 #define MH_UNPAIR 0x07      /* SET */
+#define MH_LAST_ERROR 0x0A  /* GET: [phase, code, code2, age_s u16 BE] */
 
 #define PAIR_FIRST_MATCH 0xFF
 
 enum mh_action { ACT_SCAN_START, ACT_SCAN_STOP, ACT_PAIR_ADDR, ACT_PAIR_FIRST, ACT_UNPAIR };
 
-/* ponytail: one pending action; a second SET before the workqueue runs
- * replaces the first. The app waits for each echo, and the workqueue runs
- * within a tick or two, so a queue would only matter for a misbehaving
- * client. */
-static enum mh_action pending;
-static bt_addr_le_t pending_addr;
+/* Actions queue in order: a single pending slot let a second SET that
+ * arrived before the workqueue ran (e.g. pair, then scan stop) replace the
+ * first, so the pair never ran. */
+struct mh_act {
+    enum mh_action act;
+    bt_addr_le_t addr;
+};
+
+K_MSGQ_DEFINE(act_q, sizeof(struct mh_act), 4, 4);
 
 static void action_work_cb(struct k_work *work) {
     ARG_UNUSED(work);
-    switch (pending) {
-    case ACT_SCAN_START:
-        zmk_ble_mouse_host_scan_start();
-        break;
-    case ACT_SCAN_STOP:
-        zmk_ble_mouse_host_scan_stop();
-        break;
-    case ACT_PAIR_ADDR:
-        zmk_ble_mouse_host_pair_addr(&pending_addr);
-        break;
-    case ACT_PAIR_FIRST:
-        zmk_ble_mouse_host_pair();
-        break;
-    case ACT_UNPAIR:
-        zmk_ble_mouse_host_unpair();
-        break;
+    struct mh_act a;
+
+    while (k_msgq_get(&act_q, &a, K_NO_WAIT) == 0) {
+        switch (a.act) {
+        case ACT_SCAN_START:
+            zmk_ble_mouse_host_scan_start();
+            break;
+        case ACT_SCAN_STOP:
+            zmk_ble_mouse_host_scan_stop();
+            break;
+        case ACT_PAIR_ADDR:
+            zmk_ble_mouse_host_pair_addr(&a.addr);
+            break;
+        case ACT_PAIR_FIRST:
+            zmk_ble_mouse_host_pair();
+            break;
+        case ACT_UNPAIR:
+            zmk_ble_mouse_host_unpair();
+            break;
+        }
     }
 }
 static K_WORK_DEFINE(action_work, action_work_cb);
 
-static void defer(enum mh_action a) {
-    pending = a;
+/* false = queue full (4 SETs in flight): the SET answers 0xFF. */
+static bool defer_addr(enum mh_action act, const bt_addr_le_t *addr) {
+    struct mh_act a = {.act = act};
+
+    if (addr) {
+        bt_addr_le_copy(&a.addr, addr);
+    }
+    if (k_msgq_put(&act_q, &a, K_NO_WAIT) != 0) {
+        return false;
+    }
     k_work_submit(&action_work);
+    return true;
 }
+
+static bool defer(enum mh_action act) { return defer_addr(act, NULL); }
 
 /* [type][6 address bytes, most significant first, as printed AA:BB:..]. */
 static void put_addr(uint8_t *p, const bt_addr_le_t *a) {
@@ -103,31 +122,28 @@ bool flask_proto_ext_handle(uint8_t cmd, uint8_t channel, uint8_t value_id, uint
     if (cmd == CMD_SET) {
         switch (value_id) {
         case MH_SCAN:
-            defer(a0 ? ACT_SCAN_START : ACT_SCAN_STOP);
-            return true;
+            return defer(a0 ? ACT_SCAN_START : ACT_SCAN_STOP);
         case MH_PAIR: {
             if (a0 == PAIR_FIRST_MATCH) {
-                defer(ACT_PAIR_FIRST);
-                return true;
+                return defer(ACT_PAIR_FIRST);
             }
             /* The address must match: a rescan since the app read the list
              * would otherwise pair whatever now sits at that index. */
             struct zmk_ble_mouse_host_scan_result r;
             uint8_t want[7];
             if (len < 8 || zmk_ble_mouse_host_scan_get(a0, &r) != 0) {
+                zmk_ble_mouse_host_set_error(ZMK_BLE_MOUSE_HOST_ERR_ADDR_CHECK, 1, a0);
                 return false;
             }
             put_addr(want, &r.addr);
             if (memcmp(want, &p[1], sizeof(want)) != 0) {
+                zmk_ble_mouse_host_set_error(ZMK_BLE_MOUSE_HOST_ERR_ADDR_CHECK, 2, a0);
                 return false;
             }
-            bt_addr_le_copy(&pending_addr, &r.addr);
-            defer(ACT_PAIR_ADDR);
-            return true;
+            return defer_addr(ACT_PAIR_ADDR, &r.addr);
         }
         case MH_UNPAIR:
-            defer(ACT_UNPAIR);
-            return true;
+            return defer(ACT_UNPAIR);
         default:
             return false;
         }
@@ -148,6 +164,19 @@ bool flask_proto_ext_handle(uint8_t cmd, uint8_t channel, uint8_t value_id, uint
         p[3] = st.buttons;
         put_addr(&p[4], &st.addr);
         p[11] = strlen(st.name);
+        return true;
+    }
+    case MH_LAST_ERROR: {
+        struct zmk_ble_mouse_host_error e;
+        zmk_ble_mouse_host_get_error(&e);
+        p[0] = e.phase;
+        p[1] = e.code;
+        p[2] = e.code2;
+        if (e.phase) {
+            uint16_t age = MIN((k_uptime_get() - e.at_ms) / 1000, 0xFFFF);
+            p[3] = age >> 8;
+            p[4] = age & 0xFF;
+        }
         return true;
     }
     case MH_STATUS_NAME: {

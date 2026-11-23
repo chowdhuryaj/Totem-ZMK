@@ -22,9 +22,11 @@ manifest:
       # dongle's BLE mouse buttons 6-8 reach macOS natively (re-pair BLE hosts
       # after flashing: cached 5-button report map) + split central retries a
       # failed scan start (upstream stuck after one failure, e.g. while the
-      # mouse host's own scan held the scanner). Bump deliberately.
+      # mouse host's own scan held the scanner) + BT_SMP_SC_PAIR_ONLY as
+      # imply with hosts kept SC-only in pairing_accept (legacy-pairing
+      # mice on the dongle). Bump deliberately.
       remote: chowdhuryaj
-      revision: dc42f15c80d3568ba4debaba279685178bc9e220
+      revision: d92254fa4d215f55366fd88a728e3729a5597522
       import: app/west.yml
 
     # The TOTEM shield is VENDORED under boards/shields/totem (MIT,
@@ -112,7 +114,7 @@ manifest:
     # a branch push must not change the image. Bump deliberately.
     - name: zmk-ble-mouse-host
       remote: chowdhuryaj
-      revision: e3b83dfe7eb4bbba246d5a9b57921011efd02030
+      revision: aa80aaececd205b831906531e49abbbe6a73c8a1
 
   self:
     path: config

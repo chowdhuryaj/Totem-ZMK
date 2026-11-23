@@ -113,12 +113,17 @@ include:
   # dongle UF2 that still has USB Studio (CI run 40397946562, commit
   # c8850aa) at home, edit, then flash this image back. config/totem.keymap and totem.conf apply
   # as for the halves (ZMK tries the candidate name `totem` for totem_dongle).
+  # BT_SMP_SC_PAIR_ONLY=n: lets the dongle (as central) pair a BLE mouse that
+  # only does legacy pairing (likely the Elecom DEFT Pro: list scan saw it,
+  # pairing failed, 2026-11-22). Hosts stay LE Secure Connections only: the
+  # ZMK fork's auth_pairing_accept() refuses non-SC pairing on host links
+  # (zmk mouse-8-buttons d92254f). The halves keep SC-only.
   # LV_Z_VDB_SIZE=25: the first CI build overflowed RAM by 34,570 B (run
   # 37823848051). Prospector double-buffers 50% of a 240x280x16bpp screen
   # (134 KB); 25% frees ~67 KB (the fix the Prospector README names).
   - board: xiao_ble//zmk
     shield: totem_dongle prospector_adapter raw_hid_adapter
-    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25
+    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25 -DCONFIG_BT_SMP_SC_PAIR_ONLY=n
     artifact-name: totem_dongle
   # LEFT half as a peripheral for dongle mode: the normal left image is the
   # central, so only the role flips (ZMK dongle guide). Named "Totem L" like
@@ -134,5 +139,5 @@ include:
   # if the screen stays dark or never dims. Fixed brightness 80, as the guide.
   - board: xiao_ble//zmk
     shield: totem_dongle prospector_adapter raw_hid_adapter
-    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25 -DCONFIG_PROSPECTOR_USE_AMBIENT_LIGHT_SENSOR=n -DCONFIG_PROSPECTOR_FIXED_BRIGHTNESS=80
+    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25 -DCONFIG_BT_SMP_SC_PAIR_ONLY=n -DCONFIG_PROSPECTOR_USE_AMBIENT_LIGHT_SENSOR=n -DCONFIG_PROSPECTOR_FIXED_BRIGHTNESS=80
     artifact-name: totem_dongle_no_als
