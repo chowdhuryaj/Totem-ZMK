@@ -136,3 +136,11 @@ include:
     shield: totem_dongle prospector_adapter raw_hid_adapter
     cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25 -DCONFIG_PROSPECTOR_USE_AMBIENT_LIGHT_SENSOR=n -DCONFIG_PROSPECTOR_FIXED_BRIGHTNESS=80
     artifact-name: totem_dongle_no_als
+  # DEBUG ONLY (branch mouse-debug, never for the hospital PC): the no-ALS
+  # dongle with a USB serial log, to see why mouse pairing fails.
+  #   cat $(ls /dev/tty.usbmodem* | head -1)
+  - board: xiao_ble//zmk
+    shield: totem_dongle prospector_adapter raw_hid_adapter
+    snippet: zmk-usb-logging
+    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_STUDIO_LOCKING=n -DCONFIG_RAW_HID_USB=n -DCONFIG_LV_Z_VDB_SIZE=25 -DCONFIG_PROSPECTOR_USE_AMBIENT_LIGHT_SENSOR=n -DCONFIG_PROSPECTOR_FIXED_BRIGHTNESS=80 -DCONFIG_LOG_MODE_IMMEDIATE=y -DCONFIG_ZMK_BLE_MOUSE_HOST_LOG_LEVEL_DBG=y -DCONFIG_BT_LOG_LEVEL_WRN=y
+    artifact-name: totem_dongle_no_als_logging
